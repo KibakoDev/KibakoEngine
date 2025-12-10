@@ -1,0 +1,16 @@
+<rml>
+  <head>
+    <title>Centered Text Test</title>
+    <link type="text/rcss" href="main_menu.rcss" />
+  </head>
+  <body>
+    <div id="menu">
+      <h1 id="title">Kibako Engine UI</h1>
+      <button id="btn_quit">Quit</button>
+      <div id="bottom">
+        <img id="logo" src="img/KibakoEngine_Logo_Black.png" />
+        <p id="commit">28118fe</p>
+      </div>
+    </div>
+  </body>
+</rml>

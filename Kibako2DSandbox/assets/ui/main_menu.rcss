@@ -1,0 +1,60 @@
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  font-family: rmlui-debugger-font;
+}
+
+#menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  background-color: rgba(255, 255, 255, 25%);
+  min-height: 250px;
+  padding-top: 20px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+#title {
+  font-size: 50px;
+  color: white;
+}
+
+button {
+  color: rgba(255, 255, 255, 70%);
+  font-size: 30px;
+  cursor: pointer;
+  transition: transform 0.1s sine-in-out, color 0.1s sine-in-out;
+}
+
+button:hover {
+  color: white;
+  transform: scale(1.1);
+}
+
+#logo {
+  width: 40px;
+  height: 40px;
+  opacity: 0.8;
+}
+
+#commit {
+  font-size: 10px;
+  color: white;
+  opacity: 0.7;
+}
+
+#bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
