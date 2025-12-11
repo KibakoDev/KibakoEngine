@@ -68,7 +68,7 @@
     <ClInclude Include="include\KibakoEngine\Utils\Math.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\stb_image.h">
+    <ClInclude Include="..\third_party\stb_image.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\KibakoEngine\UI\RmlSystemInterface.h">

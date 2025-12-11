@@ -6,29 +6,37 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Kibako2DEngine", "Kibako2DEngine\Kibako2DEngine.vcxproj", "{1E087874-8FFF-4A82-96FE-3C18D937AE21}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Kibako2DSandbox", "Kibako2DSandbox\Kibako2DSandbox.vcxproj", "{D5B3EE02-9BDB-4D15-8515-B6FB45B6FE3B}"
-	ProjectSection(ProjectDependencies) = postProject
-		{1E087874-8FFF-4A82-96FE-3C18D937AE21} = {1E087874-8FFF-4A82-96FE-3C18D937AE21}
-	EndProjectSection
+        ProjectSection(ProjectDependencies) = postProject
+                {1E087874-8FFF-4A82-96FE-3C18D937AE21} = {1E087874-8FFF-4A82-96FE-3C18D937AE21}
+        EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Engine", "Engine", "{E6DE9364-5850-4EE0-BE04-DC28E7158D09}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{97AF2014-21F4-4AF6-B7BF-2969298D70EA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
 		Release|x64 = Release|x64
 	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1E087874-8FFF-4A82-96FE-3C18D937AE21}.Debug|x64.ActiveCfg = Debug|x64
-		{1E087874-8FFF-4A82-96FE-3C18D937AE21}.Debug|x64.Build.0 = Debug|x64
-		{1E087874-8FFF-4A82-96FE-3C18D937AE21}.Release|x64.ActiveCfg = Release|x64
-		{1E087874-8FFF-4A82-96FE-3C18D937AE21}.Release|x64.Build.0 = Release|x64
-		{D5B3EE02-9BDB-4D15-8515-B6FB45B6FE3B}.Debug|x64.ActiveCfg = Debug|x64
-		{D5B3EE02-9BDB-4D15-8515-B6FB45B6FE3B}.Debug|x64.Build.0 = Debug|x64
-		{D5B3EE02-9BDB-4D15-8515-B6FB45B6FE3B}.Release|x64.ActiveCfg = Release|x64
-		{D5B3EE02-9BDB-4D15-8515-B6FB45B6FE3B}.Release|x64.Build.0 = Release|x64
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {C7A700A2-362C-4D44-A62D-7B537B5660C0}
-	EndGlobalSection
+        GlobalSection(ProjectConfigurationPlatforms) = postSolution
+                {1E087874-8FFF-4A82-96FE-3C18D937AE21}.Debug|x64.ActiveCfg = Debug|x64
+                {1E087874-8FFF-4A82-96FE-3C18D937AE21}.Debug|x64.Build.0 = Debug|x64
+                {1E087874-8FFF-4A82-96FE-3C18D937AE21}.Release|x64.ActiveCfg = Release|x64
+                {1E087874-8FFF-4A82-96FE-3C18D937AE21}.Release|x64.Build.0 = Release|x64
+                {D5B3EE02-9BDB-4D15-8515-B6FB45B6FE3B}.Debug|x64.ActiveCfg = Debug|x64
+                {D5B3EE02-9BDB-4D15-8515-B6FB45B6FE3B}.Debug|x64.Build.0 = Debug|x64
+                {D5B3EE02-9BDB-4D15-8515-B6FB45B6FE3B}.Release|x64.ActiveCfg = Release|x64
+                {D5B3EE02-9BDB-4D15-8515-B6FB45B6FE3B}.Release|x64.Build.0 = Release|x64
+        EndGlobalSection
+        GlobalSection(SolutionProperties) = preSolution
+                HideSolutionNode = FALSE
+        EndGlobalSection
+        GlobalSection(NestedProjects) = preSolution
+                {1E087874-8FFF-4A82-96FE-3C18D937AE21} = {E6DE9364-5850-4EE0-BE04-DC28E7158D09}
+                {D5B3EE02-9BDB-4D15-8515-B6FB45B6FE3B} = {97AF2014-21F4-4AF6-B7BF-2969298D70EA}
+        EndGlobalSection
+        GlobalSection(ExtensibilityGlobals) = postSolution
+                SolutionGuid = {C7A700A2-362C-4D44-A62D-7B537B5660C0}
+        EndGlobalSection
 EndGlobal
