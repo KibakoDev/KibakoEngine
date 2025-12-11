@@ -103,5 +103,4 @@ void UILayer::OnUpdate(float /*dt*/)
 
 void UILayer::OnRender(SpriteBatch2D& /*batch*/)
 {
-    // UI is rendered via RmlUIContext after world sprites are queued
 }

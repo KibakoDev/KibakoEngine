@@ -32,12 +32,12 @@ button {
   color: rgba(255, 255, 255, 70%);
   font-size: 30px;
   cursor: pointer;
-  transition: transform 0.1s sine-in-out, color 0.1s sine-in-out;
+  transition: all 0.1s sine-in-out;
 }
 
 button:hover {
   color: white;
-  transform: scale(1.1);
+  font-size: 32px;
 }
 
 #logo {
