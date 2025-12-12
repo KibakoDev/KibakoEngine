@@ -3,6 +3,13 @@
 
 #include <algorithm>
 
+#if defined(min)
+#  undef min
+#endif
+#if defined(max)
+#  undef max
+#endif
+
 namespace KibakoEngine::Gameplay {
 
     // Stopwatch that keeps increasing while it is running
