@@ -27,5 +27,6 @@
   <ItemGroup>
     <None Include="assets\ui\main_menu.rml" />
     <None Include="assets\ui\main_menu.rcss" />
+    <None Include="assets\scenes\test.scene.json" />
   </ItemGroup>
 </Project>

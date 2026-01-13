@@ -8,7 +8,7 @@
 #include <cstdint>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "nothings/stb_image.h"
 
 namespace KibakoEngine {
 

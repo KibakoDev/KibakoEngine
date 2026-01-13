@@ -4,13 +4,11 @@
 #include <cstdint>
 
 #include "KibakoEngine/Core/Layer.h"
-#include "KibakoEngine/Renderer/SpriteTypes.h"
-#include "KibakoEngine/Renderer/Texture2D.h"
 #include "KibakoEngine/Scene/Scene2D.h"
-#include "KibakoEngine/Collision/Collision2D.h"
 
 namespace KibakoEngine {
     class Application;
+    class SpriteBatch2D;
 }
 
 class GameLayer final : public KibakoEngine::Layer
@@ -24,20 +22,20 @@ public:
     void OnRender(KibakoEngine::SpriteBatch2D& batch) override;
 
 private:
-    // Scene update and debug rendering helpers
     void UpdateScene(float dt);
     void RenderCollisionDebug(KibakoEngine::SpriteBatch2D& batch);
 
 private:
     KibakoEngine::Application& m_app;
 
-    // Gameplay state
-    KibakoEngine::Scene2D      m_scene;
-    std::uint32_t              m_entityLeft = 0;
-    std::uint32_t              m_entityRight = 0;
+    // Scene (data-driven)
+    KibakoEngine::Scene2D m_scene;
 
-    KibakoEngine::Texture2D* m_starTexture = nullptr;
+    // IDs resolved from scene data
+    std::uint32_t m_entityLeft = 0;
+    std::uint32_t m_entityRight = 0;
 
+    // Debug / state
     bool  m_showCollisionDebug = false;
     bool  m_lastCollision = false;
     float m_time = 0.0f;

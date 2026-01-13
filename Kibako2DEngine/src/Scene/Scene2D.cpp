@@ -4,8 +4,12 @@
 #include "KibakoEngine/Core/Debug.h"
 #include "KibakoEngine/Core/Log.h"
 #include "KibakoEngine/Renderer/SpriteBatch2D.h"
+#include "KibakoEngine/Resources/AssetManager.h"
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 
 namespace KibakoEngine {
 
@@ -19,6 +23,47 @@ namespace KibakoEngine {
             return std::find_if(entities.begin(), entities.end(), [id](const Entity2D& entity) {
                 return entity.id == id;
                 });
+        }
+
+        static std::string ReadAllText(const char* path)
+        {
+            std::ifstream file(path, std::ios::in | std::ios::binary);
+            if (!file)
+                return {};
+
+            std::ostringstream ss;
+            ss << file.rdbuf();
+            return ss.str();
+        }
+
+        static DirectX::XMFLOAT2 ReadVec2(const nlohmann::json& arr, float defX, float defY)
+        {
+            if (!arr.is_array() || arr.size() < 2)
+                return { defX, defY };
+            return { arr[0].get<float>(), arr[1].get<float>() };
+        }
+
+        static RectF ReadRectF(const nlohmann::json& arr, const RectF& def)
+        {
+            if (!arr.is_array() || arr.size() < 4)
+                return def;
+            return RectF::FromXYWH(
+                arr[0].get<float>(),
+                arr[1].get<float>(),
+                arr[2].get<float>(),
+                arr[3].get<float>());
+        }
+
+        static Color4 ReadColor4(const nlohmann::json& arr, const Color4& def)
+        {
+            if (!arr.is_array() || arr.size() < 4)
+                return def;
+            return Color4{
+                arr[0].get<float>(),
+                arr[1].get<float>(),
+                arr[2].get<float>(),
+                arr[3].get<float>()
+            };
         }
     }
 
@@ -110,14 +155,128 @@ namespace KibakoEngine {
     // ---- Phase 1 stubs
     bool Scene2D::LoadFromFile(const char* path, AssetManager& assets)
     {
-        KBK_UNUSED(path);
-        KBK_UNUSED(assets);
-        return false;
+        if (!path || path[0] == '\0') {
+            KbkError(kLogChannel, "LoadFromFile: empty path");
+            return false;
+        }
+
+        const std::string text = ReadAllText(path);
+        if (text.empty()) {
+            KbkError(kLogChannel, "LoadFromFile: failed to read '%s'", path);
+            return false;
+        }
+
+        nlohmann::json root;
+        try {
+            root = nlohmann::json::parse(text);
+        }
+        catch (const std::exception& e) {
+            KbkError(kLogChannel, "LoadFromFile: JSON parse error in '%s': %s", path, e.what());
+            return false;
+        }
+
+        Clear();
+
+        const auto itEntities = root.find("entities");
+        if (itEntities == root.end() || !itEntities->is_array()) {
+            KbkWarn(kLogChannel, "LoadFromFile: no 'entities' array in '%s'", path);
+            return true;
+        }
+
+        const auto& entitiesJson = *itEntities;
+        m_entities.reserve(entitiesJson.size());
+
+        EntityID maxId = 0;
+
+        for (const auto& eJson : entitiesJson)
+        {
+            Entity2D& e = CreateEntity();
+
+            // Optional id override
+            if (eJson.contains("id")) {
+                e.id = eJson["id"].get<EntityID>();
+            }
+            if (e.id > maxId) maxId = e.id;
+
+            // active
+            if (eJson.contains("active"))
+                e.active = eJson["active"].get<bool>();
+
+            // transform
+            if (eJson.contains("transform")) {
+                const auto& t = eJson["transform"];
+                if (t.contains("pos"))
+                    e.transform.position = ReadVec2(t["pos"], 0.0f, 0.0f);
+                if (t.contains("rot"))
+                    e.transform.rotation = t["rot"].get<float>();
+                if (t.contains("scale"))
+                    e.transform.scale = ReadVec2(t["scale"], 1.0f, 1.0f);
+            }
+
+            // sprite
+            if (eJson.contains("sprite")) {
+                const auto& s = eJson["sprite"];
+
+                if (s.contains("texture")) {
+                    const auto& tex = s["texture"];
+                    if (tex.contains("id"))   e.sprite.textureId = tex["id"].get<std::string>();
+                    if (tex.contains("path")) e.sprite.texturePath = tex["path"].get<std::string>();
+                    if (tex.contains("sRGB")) e.sprite.textureSRGB = tex["sRGB"].get<bool>();
+                }
+
+                if (s.contains("dst"))   e.sprite.dst = ReadRectF(s["dst"], e.sprite.dst);
+                if (s.contains("src"))   e.sprite.src = ReadRectF(s["src"], e.sprite.src);
+                if (s.contains("color")) e.sprite.color = ReadColor4(s["color"], e.sprite.color);
+                if (s.contains("layer")) e.sprite.layer = s["layer"].get<int>();
+            }
+
+            // collision
+            if (eJson.contains("collision") && !eJson["collision"].is_null()) {
+                const auto& c = eJson["collision"];
+
+                if (c.contains("type")) {
+                    const std::string type = c["type"].get<std::string>();
+                    const bool active = c.contains("active") ? c["active"].get<bool>() : true;
+
+                    if (type == "circle") {
+                        const float radius = c.contains("radius") ? c["radius"].get<float>() : 0.0f;
+                        AddCircleCollider(e, radius, active);
+                    }
+                    else if (type == "aabb") {
+                        const float halfW = c.contains("halfW") ? c["halfW"].get<float>() : 0.0f;
+                        const float halfH = c.contains("halfH") ? c["halfH"].get<float>() : 0.0f;
+                        AddAABBCollider(e, halfW, halfH, active);
+                    }
+                }
+            }
+        }
+
+        // Ensure future CreateEntity() uses a unique id
+        if (maxId >= m_nextID)
+            m_nextID = maxId + 1;
+
+        ResolveAssets(assets);
+
+        KbkLog(kLogChannel, "Loaded scene '%s' (%zu entities)", path, m_entities.size());
+        return true;
     }
 
     void Scene2D::ResolveAssets(AssetManager& assets)
     {
-        KBK_UNUSED(assets);
+        for (auto& e : m_entities) {
+            if (!e.active)
+                continue;
+
+            if (!e.sprite.texture &&
+                !e.sprite.textureId.empty() &&
+                !e.sprite.texturePath.empty()) {
+
+                e.sprite.texture = assets.LoadTexture(
+                    e.sprite.textureId,
+                    e.sprite.texturePath,
+                    e.sprite.textureSRGB);
+            }
+        }
     }
 
     // ---- Collider helpers
