@@ -35,8 +35,6 @@ private:
     KibakoEngine::Scene2D      m_scene;
     std::uint32_t              m_entityLeft = 0;
     std::uint32_t              m_entityRight = 0;
-    KibakoEngine::CircleCollider2D m_leftCollider{};
-    KibakoEngine::CircleCollider2D m_rightCollider{};
 
     KibakoEngine::Texture2D* m_starTexture = nullptr;
 

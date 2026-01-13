@@ -76,9 +76,11 @@ void GameLayer::OnAttach()
             Color4::White(),
             0);
 
-        m_leftCollider.radius = 0.5f * texW * e.transform.scale.x;
-        m_leftCollider.active = true;
-        e.collision.circle = &m_leftCollider;
+        m_scene.AddCircleCollider(
+            e,
+            0.5f * texW * e.transform.scale.x,
+            true
+        );
     }
 
     // Create the right star entity
@@ -92,9 +94,11 @@ void GameLayer::OnAttach()
             Color4{ 0.55f, 0.55f, 0.55f, 1.0f },
             1);
 
-        m_rightCollider.radius = 0.5f * texW * e.transform.scale.x;
-        m_rightCollider.active = true;
-        e.collision.circle = &m_rightCollider;
+        m_scene.AddCircleCollider(
+            e,
+            0.5f * texW * e.transform.scale.x,
+            true
+        );
     }
 
     KbkLog(kLogChannel,
@@ -114,9 +118,6 @@ void GameLayer::OnDetach()
 
     m_entityLeft = 0;
     m_entityRight = 0;
-
-    m_leftCollider = {};
-    m_rightCollider = {};
 
     m_showCollisionDebug = false;
     m_lastCollision = false;
