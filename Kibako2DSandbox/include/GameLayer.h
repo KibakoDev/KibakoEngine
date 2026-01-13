@@ -1,4 +1,3 @@
-// Gameplay layer used by the sandbox application
 #pragma once
 
 #include <cstdint>
@@ -28,14 +27,11 @@ private:
 private:
     KibakoEngine::Application& m_app;
 
-    // Scene (data-driven)
     KibakoEngine::Scene2D m_scene;
 
-    // IDs resolved from scene data
     std::uint32_t m_entityLeft = 0;
     std::uint32_t m_entityRight = 0;
 
-    // Debug / state
     bool  m_showCollisionDebug = false;
     bool  m_lastCollision = false;
     float m_time = 0.0f;

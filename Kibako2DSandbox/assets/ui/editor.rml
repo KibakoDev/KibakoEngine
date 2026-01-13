@@ -1,0 +1,30 @@
+<rml>
+  <head>
+    <title>Kibako Editor</title>
+    <link type="text/rcss" href="editor.rcss" />
+  </head>
+
+  <body>
+    <div id="editor">
+      <div id="header">
+        <h1 id="title">Kibako Editor</h1>
+      </div>
+
+      <div id="content">
+        <div class="panel" id="hierarchy">
+          <h2 class="panel_title">Hierarchy</h2>
+          <div id="hierarchy_list"></div>
+        </div>
+
+        <div class="panel" id="inspector">
+          <h2 class="panel_title">Inspector</h2>
+          <p class="hint">Select an entity in the hierarchy.</p>
+        </div>
+      </div>
+
+      <div id="bottom">
+        <p class="hint">F1: collision debug • ESC: quit</p>
+      </div>
+    </div>
+  </body>
+</rml>

@@ -9,6 +9,7 @@
 #include "KibakoEngine/Renderer/RendererD3D11.h"
 #include "KibakoEngine/Resources/AssetManager.h"
 #include "KibakoEngine/UI/RmlUIContext.h"
+#include "KibakoEngine/Editor/EditorContext.h"
 
 struct SDL_Window;
 struct HWND__;
@@ -51,6 +52,9 @@ namespace KibakoEngine {
         [[nodiscard]] RmlUIContext& UI() { return m_ui; }
         [[nodiscard]] const RmlUIContext& UI() const { return m_ui; }
 
+        [[nodiscard]] EditorContext& Editor() { return m_editor; }
+        [[nodiscard]] const EditorContext& Editor() const { return m_editor; }
+
         void PushLayer(Layer* layer);
         void PopLayer(Layer* layer);
 
@@ -80,6 +84,8 @@ namespace KibakoEngine {
         AssetManager  m_assets;
 
         RmlUIContext m_ui;
+
+        EditorContext m_editor;
 
         std::vector<Layer*> m_layers;
     };

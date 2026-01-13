@@ -22,11 +22,9 @@
     <ClInclude Include="include\UILayer.h" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="assets\star.png" />
+    <None Include="assets\scenes\test.scene.json" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\ui\main_menu.rml" />
-    <None Include="assets\ui\main_menu.rcss" />
-    <None Include="assets\scenes\test.scene.json" />
+    <Image Include="assets\sprites\star.png" />
   </ItemGroup>
 </Project>

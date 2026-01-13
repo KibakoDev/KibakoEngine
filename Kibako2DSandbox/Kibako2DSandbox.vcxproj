@@ -25,12 +25,10 @@
     <ClInclude Include="include\UILayer.h" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="assets\star.png" />
+    <None Include="assets\scenes\test.scene.json" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\scenes\test.scene.json" />
-    <None Include="assets\ui\main_menu.rcss" />
-    <None Include="assets\ui\main_menu.rml" />
+    <Image Include="assets\sprites\star.png" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

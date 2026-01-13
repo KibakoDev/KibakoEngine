@@ -1,0 +1,104 @@
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  font-family: rmlui-debugger-font;
+}
+
+#editor {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  min-width: 900px;
+  min-height: 520px;
+
+  padding: 20px;
+
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+#header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+#title {
+  font-size: 44px;
+  color: white;
+  margin: 0;
+}
+
+#content {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  flex: 1;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+#hierarchy {
+  width: 320px;
+}
+#inspector {
+  flex: 1;
+}
+
+.panel_title {
+  font-size: 18px;
+  color: white;
+  margin: 0 0 10px 0;
+}
+
+#hierarchy_list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+button.hierarchy_item {
+  width: 100%;
+  padding: 8px;
+
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+
+  cursor: pointer;
+
+  background-color: rgba(0, 0, 0, 0.35);
+}
+
+button.hierarchy_item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+button.hierarchy_item.selected {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.hint {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  margin: 0;
+}
+
+#bottom {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}

@@ -1,10 +1,9 @@
-// Handles gameplay logic for the sandbox scene
 #include "GameLayer.h"
 
 #include "KibakoEngine/Core/Application.h"
-#include "KibakoEngine/Core/Debug.h"
 #include "KibakoEngine/Core/Log.h"
 #include "KibakoEngine/Core/Profiler.h"
+#include "KibakoEngine/Editor/EditorContext.h"
 #include "KibakoEngine/Renderer/DebugDraw2D.h"
 
 #include <SDL2/SDL_events.h>
@@ -14,7 +13,7 @@ using namespace KibakoEngine;
 
 namespace
 {
-    constexpr const char* kLogChannel = "Sandbox";
+    constexpr const char* kLogChannel = "Game";
     constexpr int   kDebugDrawLayer = 1000;
     constexpr float kColliderThickness = 2.0f;
 }
@@ -29,36 +28,31 @@ void GameLayer::OnAttach()
 {
     KBK_PROFILE_SCOPE("GameLayerAttach");
 
-    const bool ok = m_scene.LoadFromFile(
-        "assets/scenes/test.scene.json",
-        m_app.Assets());
-
+    const bool ok = m_scene.LoadFromFile("assets/scenes/test.scene.json", m_app.Assets());
     if (!ok) {
         KbkError(kLogChannel, "Failed to load scene: assets/scenes/test.scene.json");
         return;
     }
 
-    if (auto* e = m_scene.FindByName("LeftStar"))
-        m_entityLeft = e->id;
-    else
-        KbkError("Sandbox", "Entity 'LeftStar' not found");
+    // Editor: set active scene (THIS is the link)
+    m_app.Editor().SetActiveScene(&m_scene);
+    m_app.Editor().Select(0);
 
-    if (auto* e = m_scene.FindByName("RightStar"))
-        m_entityRight = e->id;
-    else
-        KbkError("Sandbox", "Entity 'RightStar' not found");
+    // IDs defined in JSON
+    m_entityLeft = 1;
+    m_entityRight = 2;
 
-    KbkLog(kLogChannel,
-        "GameLayer attached (scene loaded, %zu entities)",
-        m_scene.Entities().size());
+    KbkLog(kLogChannel, "Scene loaded (%zu entities)", m_scene.Entities().size());
 }
 
 void GameLayer::OnDetach()
 {
     KBK_PROFILE_SCOPE("GameLayerDetach");
 
-    m_scene.Clear();
+    m_app.Editor().SetActiveScene(nullptr);
+    m_app.Editor().Select(0);
 
+    m_scene.Clear();
     m_entityLeft = 0;
     m_entityRight = 0;
 
@@ -106,31 +100,21 @@ void GameLayer::UpdateScene(float dt)
         left->transform.position = { 430.0f, 450.0f };
         left->transform.rotation = m_time * 0.8f;
     }
-
     if (right) {
         right->transform.position = { 530.0f, 450.0f };
         right->transform.rotation = -m_time * 0.2f;
     }
 
-    const CollisionComponent2D* leftCol = m_scene.Collisions().TryGet(m_entityLeft);
-    const CollisionComponent2D* rightCol = m_scene.Collisions().TryGet(m_entityRight);
-
+    // Collision is stored in the component store
     bool hit = false;
-    if (left && right && leftCol && rightCol && leftCol->circle && rightCol->circle) {
-        hit = Intersects(*leftCol->circle, left->transform,
-            *rightCol->circle, right->transform);
-    }
+    if (left && right) {
+        auto* cLeft = m_scene.Collisions().TryGet(m_entityLeft);
+        auto* cRight = m_scene.Collisions().TryGet(m_entityRight);
 
-    if (auto* spr = m_scene.Sprites().TryGet(m_entityLeft)) {
-        spr->color = hit
-            ? Color4::White()
-            : Color4{ 0.9f, 0.9f, 0.9f, 1.0f };
-    }
-
-    if (auto* spr = m_scene.Sprites().TryGet(m_entityRight)) {
-        spr->color = hit
-            ? Color4{ 0.85f, 0.85f, 0.85f, 1.0f }
-        : Color4{ 0.55f, 0.55f, 0.55f, 1.0f };
+        if (cLeft && cRight && cLeft->circle && cRight->circle) {
+            hit = Intersects(*cLeft->circle, left->transform,
+                *cRight->circle, right->transform);
+        }
     }
 
     m_lastCollision = hit;
@@ -143,20 +127,21 @@ void GameLayer::RenderCollisionDebug(SpriteBatch2D& batch)
     const Color4 circleIdle = Color4{ 0.7f, 0.7f, 0.7f, 1.0f };
     const Color4 crossColor = Color4::White();
 
+    const auto& collisions = m_scene.Collisions();
+
     for (const Entity2D& e : m_scene.Entities()) {
         if (!e.active)
             continue;
 
-        const Transform2D& t = e.transform;
-        const Color4 circleColor = m_lastCollision ? circleHit : circleIdle;
-
-        const CollisionComponent2D* col = m_scene.Collisions().TryGet(e.id);
+        const CollisionComponent2D* col = collisions.TryGet(e.id);
         if (!col)
             continue;
 
+        const Color4 circleColor = m_lastCollision ? circleHit : circleIdle;
+
         const bool drew = DebugDraw2D::DrawCollisionComponent(
             batch,
-            t,
+            e.transform,
             *col,
             circleColor,
             circleColor,
@@ -167,7 +152,7 @@ void GameLayer::RenderCollisionDebug(SpriteBatch2D& batch)
         if (drew) {
             DebugDraw2D::DrawCross(
                 batch,
-                t.position,
+                e.transform.position,
                 10.0f,
                 crossColor,
                 kColliderThickness,
