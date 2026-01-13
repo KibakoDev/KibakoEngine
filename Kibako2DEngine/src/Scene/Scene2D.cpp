@@ -18,7 +18,7 @@ namespace KibakoEngine {
         {
             return std::find_if(entities.begin(), entities.end(), [id](const Entity2D& entity) {
                 return entity.id == id;
-            });
+                });
         }
     }
 
@@ -29,7 +29,6 @@ namespace KibakoEngine {
         entity.active = true;
 
         KbkTrace(kLogChannel, "Created Entity2D id=%u", entity.id);
-
         return entity;
     }
 
@@ -46,7 +45,10 @@ namespace KibakoEngine {
     void Scene2D::Clear()
     {
         m_entities.clear();
+        m_circlePool.clear();
+        m_aabbPool.clear();
         m_nextID = 1;
+
         KbkLog(kLogChannel, "Scene2D cleared");
     }
 
@@ -65,7 +67,6 @@ namespace KibakoEngine {
     void Scene2D::Update(float dt)
     {
         KBK_UNUSED(dt);
-        // Gameplay runs elsewhere
     }
 
     void Scene2D::Render(SpriteBatch2D& batch) const
@@ -81,11 +82,9 @@ namespace KibakoEngine {
             const RectF& local = entity.sprite.dst;
             const Transform2D& transform = entity.transform;
 
-            // Scale sprite size
             const float scaledWidth = local.w * transform.scale.x;
             const float scaledHeight = local.h * transform.scale.y;
 
-            // Apply local offsets
             const float offsetX = local.x * transform.scale.x;
             const float offsetY = local.y * transform.scale.y;
 
@@ -106,6 +105,43 @@ namespace KibakoEngine {
                 transform.rotation,
                 entity.sprite.layer);
         }
+    }
+
+    // ---- Phase 1 stubs
+    bool Scene2D::LoadFromFile(const char* path, AssetManager& assets)
+    {
+        KBK_UNUSED(path);
+        KBK_UNUSED(assets);
+        return false;
+    }
+
+    void Scene2D::ResolveAssets(AssetManager& assets)
+    {
+        KBK_UNUSED(assets);
+    }
+
+    // ---- Collider helpers
+    CircleCollider2D* Scene2D::AddCircleCollider(Entity2D& e, float radius, bool active)
+    {
+        auto& c = m_circlePool.emplace_back();
+        c.radius = radius;
+        c.active = active;
+
+        e.collision.circle = &c;
+        e.collision.aabb = nullptr;
+        return &c;
+    }
+
+    AABBCollider2D* Scene2D::AddAABBCollider(Entity2D& e, float halfW, float halfH, bool active)
+    {
+        auto& b = m_aabbPool.emplace_back();
+        b.halfW = halfW;
+        b.halfH = halfH;
+        b.active = active;
+
+        e.collision.aabb = &b;
+        e.collision.circle = nullptr;
+        return &b;
     }
 
 } // namespace KibakoEngine

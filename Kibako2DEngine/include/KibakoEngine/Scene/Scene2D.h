@@ -3,6 +3,8 @@
 
 #include <cstdint>
 #include <vector>
+#include <string>
+#include <deque>
 
 #include <DirectXMath.h>
 
@@ -13,6 +15,7 @@
 namespace KibakoEngine {
 
     class SpriteBatch2D;
+    class AssetManager;
 
     using EntityID = std::uint32_t;
 
@@ -25,6 +28,12 @@ namespace KibakoEngine {
 
     struct SpriteRenderer2D
     {
+        // ---- Data-driven fields (Phase 1)
+        std::string textureId;
+        std::string texturePath;
+        bool        textureSRGB = true;
+
+        // ---- Runtime cache
         Texture2D* texture = nullptr;
 
         RectF  dst{ 0.0f, 0.0f, 0.0f, 0.0f };
@@ -38,8 +47,8 @@ namespace KibakoEngine {
         EntityID id = 0;
         bool     active = true;
 
-        Transform2D        transform;
-        SpriteRenderer2D   sprite;
+        Transform2D          transform;
+        SpriteRenderer2D     sprite;
         CollisionComponent2D collision;
     };
 
@@ -53,19 +62,30 @@ namespace KibakoEngine {
 
         void Clear();
 
-        [[nodiscard]] Entity2D*       FindEntity(EntityID id);
+        [[nodiscard]] Entity2D* FindEntity(EntityID id);
         [[nodiscard]] const Entity2D* FindEntity(EntityID id) const;
 
         std::vector<Entity2D>& Entities() { return m_entities; }
         const std::vector<Entity2D>& Entities() const { return m_entities; }
 
         void Update(float dt);
-
         void Render(SpriteBatch2D& batch) const;
+
+        // ---- Phase 1 API (stubs for now)
+        bool LoadFromFile(const char* path, AssetManager& assets);
+        void ResolveAssets(AssetManager& assets);
+
+        // ---- Helpers (used by sandbox & later by loader)
+        CircleCollider2D* AddCircleCollider(Entity2D& e, float radius, bool active = true);
+        AABBCollider2D* AddAABBCollider(Entity2D& e, float halfW, float halfH, bool active = true);
 
     private:
         EntityID m_nextID = 1;
         std::vector<Entity2D> m_entities;
+
+        // Scene-owned collider storage (stable pointers)
+        std::deque<CircleCollider2D> m_circlePool;
+        std::deque<AABBCollider2D>   m_aabbPool;
     };
 
 } // namespace KibakoEngine
