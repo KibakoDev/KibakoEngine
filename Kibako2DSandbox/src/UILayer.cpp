@@ -63,6 +63,7 @@ void UILayer::OnAttach()
     m_hierarchyList = m_editorDoc->GetElementById("hierarchy_list");
     if (!m_hierarchyList) {
         KbkError(kLogChannel, "editor.rml missing element id='hierarchy_list'");
+        CloseEditorDocument();
         return;
     }
 
@@ -72,14 +73,10 @@ void UILayer::OnAttach()
 
 void UILayer::OnDetach()
 {
-    if (m_editorDoc) {
-        m_editorDoc->Hide();
-        m_editorDoc = nullptr;
-    }
-
-    m_hierarchyList = nullptr;
+    CloseEditorDocument();
     m_lastScene = nullptr;
     m_lastSelected = 0;
+    m_lastHierarchySignature = 0;
 }
 
 void UILayer::OnUpdate(float)
@@ -90,8 +87,18 @@ void UILayer::OnUpdate(float)
     if (scene != m_lastScene) {
         m_lastScene = scene;
         RebuildHierarchy();
+        ValidateSelection(scene);
         m_lastSelected = m_app.Editor().Selected();
         UpdateSelectionVisuals();
+    }
+    else if (scene) {
+        const std::size_t signature = ComputeHierarchySignature(*scene);
+        if (signature != m_lastHierarchySignature) {
+            m_lastHierarchySignature = signature;
+            RebuildHierarchy();
+            ValidateSelection(scene);
+            UpdateSelectionVisuals();
+        }
     }
 
     // Update highlight when selection changes
@@ -106,6 +113,34 @@ void UILayer::OnRender(SpriteBatch2D&)
 {
 }
 
+void UILayer::CloseEditorDocument()
+{
+    if (m_editorDoc) {
+        m_editorDoc->Hide();
+        m_editorDoc->Close();
+        m_editorDoc = nullptr;
+    }
+
+    m_hierarchyList = nullptr;
+}
+
+void UILayer::ValidateSelection(Scene2D* scene)
+{
+    if (!scene) {
+        m_app.Editor().Select(0);
+        return;
+    }
+
+    const std::uint32_t selected = m_app.Editor().Selected();
+    if (selected == 0)
+        return;
+
+    const Entity2D* entity = scene->FindEntity(selected);
+    if (!entity || !entity->active) {
+        m_app.Editor().Select(0);
+    }
+}
+
 void UILayer::RebuildHierarchy()
 {
     if (!m_editorDoc || !m_hierarchyList)
@@ -116,8 +151,11 @@ void UILayer::RebuildHierarchy()
     Scene2D* scene = m_app.Editor().GetActiveScene();
     if (!scene) {
         KbkWarn(kLogChannel, "No active scene (hierarchy empty)");
+        m_lastHierarchySignature = 0;
         return;
     }
+
+    m_lastHierarchySignature = ComputeHierarchySignature(*scene);
 
     for (const Entity2D& e : scene->Entities()) {
         if (!e.active)
@@ -163,4 +201,25 @@ void UILayer::UpdateSelectionVisuals()
         const bool isSel = (selected != 0 && static_cast<std::uint32_t>(idAttr) == selected);
         child->SetClass("selected", isSel);
     }
+}
+
+std::size_t UILayer::ComputeHierarchySignature(const Scene2D& scene) const
+{
+    std::size_t signature = 0;
+    std::hash<std::uint32_t> idHash;
+    std::hash<std::string> nameHash;
+
+    for (const Entity2D& e : scene.Entities()) {
+        if (!e.active)
+            continue;
+
+        const std::size_t idPart = idHash(e.id);
+        signature ^= idPart + 0x9e3779b9 + (signature << 6) + (signature >> 2);
+
+        if (const auto* name = scene.TryGetName(e.id)) {
+            signature ^= nameHash(name->name) + 0x9e3779b9 + (signature << 6) + (signature >> 2);
+        }
+    }
+
+    return signature;
 }
