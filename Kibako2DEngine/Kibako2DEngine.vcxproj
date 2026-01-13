@@ -28,6 +28,7 @@
     <ClInclude Include="include\KibakoEngine\Renderer\SpriteTypes.h" />
     <ClInclude Include="include\KibakoEngine\Renderer\Texture2D.h" />
     <ClInclude Include="include\KibakoEngine\Resources\AssetManager.h" />
+    <ClInclude Include="include\KibakoEngine\Scene\ComponentStore.h" />
     <ClInclude Include="include\KibakoEngine\Scene\Scene2D.h" />
     <ClInclude Include="include\KibakoEngine\UI\RmlRenderInterfaceD3D11.h" />
     <ClInclude Include="include\KibakoEngine\UI\RmlSystemInterface.h" />

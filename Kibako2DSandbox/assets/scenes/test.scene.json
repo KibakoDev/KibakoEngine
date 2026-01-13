@@ -15,7 +15,7 @@
       "sprite": {
         "texture": {
           "id": "star",
-          "path": "assets/star.png",
+          "path": "assets/sprites/star.png",
           "sRGB": true
         },
         "dst": [ 0.0, 0.0, 64.0, 64.0 ],
@@ -45,7 +45,7 @@
       "sprite": {
         "texture": {
           "id": "star",
-          "path": "assets/star.png",
+          "path": "assets/sprites/star.png",
           "sRGB": true
         },
         "dst": [ 0.0, 0.0, 64.0, 64.0 ],

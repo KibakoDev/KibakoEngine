@@ -1,10 +1,9 @@
 // Utility helpers for drawing debug shapes with SpriteBatch2D
 #include "KibakoEngine/Renderer/DebugDraw2D.h"
+#include "KibakoEngine/Scene/Scene2D.h"
 
 #include <algorithm>
 #include <cmath>
-
-#include "KibakoEngine/Scene/Scene2D.h"
 
 namespace KibakoEngine::DebugDraw2D {
 

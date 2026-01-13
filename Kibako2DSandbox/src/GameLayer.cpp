@@ -6,7 +6,6 @@
 #include "KibakoEngine/Core/Log.h"
 #include "KibakoEngine/Core/Profiler.h"
 #include "KibakoEngine/Renderer/DebugDraw2D.h"
-#include "KibakoEngine/Scene/Scene2D.h"
 
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_scancode.h>
@@ -39,7 +38,6 @@ void GameLayer::OnAttach()
         return;
     }
 
-    // These IDs are defined in the JSON
     m_entityLeft = 1;
     m_entityRight = 2;
 
@@ -107,12 +105,25 @@ void GameLayer::UpdateScene(float dt)
         right->transform.rotation = -m_time * 0.2f;
     }
 
-    bool hit = false;
-    if (left && right &&
-        left->collision.circle && right->collision.circle) {
+    const CollisionComponent2D* leftCol = m_scene.Collisions().TryGet(m_entityLeft);
+    const CollisionComponent2D* rightCol = m_scene.Collisions().TryGet(m_entityRight);
 
-        hit = Intersects(*left->collision.circle, left->transform,
-            *right->collision.circle, right->transform);
+    bool hit = false;
+    if (left && right && leftCol && rightCol && leftCol->circle && rightCol->circle) {
+        hit = Intersects(*leftCol->circle, left->transform,
+            *rightCol->circle, right->transform);
+    }
+
+    if (auto* spr = m_scene.Sprites().TryGet(m_entityLeft)) {
+        spr->color = hit
+            ? Color4::White()
+            : Color4{ 0.9f, 0.9f, 0.9f, 1.0f };
+    }
+
+    if (auto* spr = m_scene.Sprites().TryGet(m_entityRight)) {
+        spr->color = hit
+            ? Color4{ 0.85f, 0.85f, 0.85f, 1.0f }
+        : Color4{ 0.55f, 0.55f, 0.55f, 1.0f };
     }
 
     m_lastCollision = hit;
@@ -132,10 +143,14 @@ void GameLayer::RenderCollisionDebug(SpriteBatch2D& batch)
         const Transform2D& t = e.transform;
         const Color4 circleColor = m_lastCollision ? circleHit : circleIdle;
 
+        const CollisionComponent2D* col = m_scene.Collisions().TryGet(e.id);
+        if (!col)
+            continue;
+
         const bool drew = DebugDraw2D::DrawCollisionComponent(
             batch,
             t,
-            e.collision,
+            *col,
             circleColor,
             circleColor,
             kColliderThickness,

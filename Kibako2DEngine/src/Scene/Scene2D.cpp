@@ -1,10 +1,11 @@
-// Stores and renders collections of 2D entities
+// Stores and renders collections of 2D entities (Phase 2: component stores)
 #include "KibakoEngine/Scene/Scene2D.h"
 
 #include "KibakoEngine/Core/Debug.h"
 #include "KibakoEngine/Core/Log.h"
 #include "KibakoEngine/Renderer/SpriteBatch2D.h"
 #include "KibakoEngine/Resources/AssetManager.h"
+
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -20,9 +21,8 @@ namespace KibakoEngine {
         template <typename Container>
         auto FindEntityIt(Container& entities, EntityID id)
         {
-            return std::find_if(entities.begin(), entities.end(), [id](const Entity2D& entity) {
-                return entity.id == id;
-                });
+            return std::find_if(entities.begin(), entities.end(),
+                [id](const Entity2D& entity) { return entity.id == id; });
         }
 
         static std::string ReadAllText(const char* path)
@@ -30,7 +30,6 @@ namespace KibakoEngine {
             std::ifstream file(path, std::ios::in | std::ios::binary);
             if (!file)
                 return {};
-
             std::ostringstream ss;
             ss << file.rdbuf();
             return ss.str();
@@ -77,6 +76,19 @@ namespace KibakoEngine {
         return entity;
     }
 
+    Entity2D& Scene2D::CreateEntityWithID(EntityID forcedId)
+    {
+        Entity2D& entity = m_entities.emplace_back();
+        entity.id = forcedId;
+        entity.active = true;
+
+        if (forcedId >= m_nextID)
+            m_nextID = forcedId + 1;
+
+        KbkTrace(kLogChannel, "Created Entity2D (forced) id=%u", entity.id);
+        return entity;
+    }
+
     void Scene2D::DestroyEntity(EntityID id)
     {
         const auto it = FindEntityIt(m_entities, id);
@@ -84,14 +96,24 @@ namespace KibakoEngine {
             return;
 
         it->active = false;
+
+        // Remove optional components
+        m_sprites.Remove(id);
+        m_collisions.Remove(id);
+
         KbkTrace(kLogChannel, "Destroyed Entity2D id=%u (marked inactive)", id);
     }
 
     void Scene2D::Clear()
     {
         m_entities.clear();
+
+        m_sprites.Clear();
+        m_collisions.Clear();
+
         m_circlePool.clear();
         m_aabbPool.clear();
+
         m_nextID = 1;
 
         KbkLog(kLogChannel, "Scene2D cleared");
@@ -112,6 +134,39 @@ namespace KibakoEngine {
     void Scene2D::Update(float dt)
     {
         KBK_UNUSED(dt);
+        // gameplay/systems will live elsewhere later
+    }
+
+    SpriteRenderer2D& Scene2D::AddSprite(EntityID id)
+    {
+        return m_sprites.Add(id);
+    }
+
+    CircleCollider2D* Scene2D::AddCircleCollider(EntityID id, float radius, bool active)
+    {
+        auto& c = m_circlePool.emplace_back();
+        c.radius = radius;
+        c.active = active;
+
+        auto& comp = m_collisions.Add(id);
+        comp.circle = &c;
+        comp.aabb = nullptr;
+
+        return &c;
+    }
+
+    AABBCollider2D* Scene2D::AddAABBCollider(EntityID id, float halfW, float halfH, bool active)
+    {
+        auto& b = m_aabbPool.emplace_back();
+        b.halfW = halfW;
+        b.halfH = halfH;
+        b.active = active;
+
+        auto& comp = m_collisions.Add(id);
+        comp.aabb = &b;
+        comp.circle = nullptr;
+
+        return &b;
     }
 
     void Scene2D::Render(SpriteBatch2D& batch) const
@@ -120,11 +175,15 @@ namespace KibakoEngine {
             if (!entity.active)
                 continue;
 
-            const Texture2D* texture = entity.sprite.texture;
+            const SpriteRenderer2D* spr = m_sprites.TryGet(entity.id);
+            if (!spr)
+                continue;
+
+            const Texture2D* texture = spr->texture;
             if (!texture || !texture->IsValid())
                 continue;
 
-            const RectF& local = entity.sprite.dst;
+            const RectF& local = spr->dst;
             const Transform2D& transform = entity.transform;
 
             const float scaledWidth = local.w * transform.scale.x;
@@ -145,14 +204,13 @@ namespace KibakoEngine {
             batch.Push(
                 *texture,
                 dst,
-                entity.sprite.src,
-                entity.sprite.color,
+                spr->src,
+                spr->color,
                 transform.rotation,
-                entity.sprite.layer);
+                spr->layer);
         }
     }
 
-    // ---- Phase 1 stubs
     bool Scene2D::LoadFromFile(const char* path, AssetManager& assets)
     {
         if (!path || path[0] == '\0') {
@@ -186,17 +244,13 @@ namespace KibakoEngine {
         const auto& entitiesJson = *itEntities;
         m_entities.reserve(entitiesJson.size());
 
-        EntityID maxId = 0;
-
         for (const auto& eJson : entitiesJson)
         {
-            Entity2D& e = CreateEntity();
+            EntityID forcedId = 0;
+            if (eJson.contains("id"))
+                forcedId = eJson["id"].get<EntityID>();
 
-            // Optional id override
-            if (eJson.contains("id")) {
-                e.id = eJson["id"].get<EntityID>();
-            }
-            if (e.id > maxId) maxId = e.id;
+            Entity2D& e = (forcedId != 0) ? CreateEntityWithID(forcedId) : CreateEntity();
 
             // active
             if (eJson.contains("active"))
@@ -213,47 +267,43 @@ namespace KibakoEngine {
                     e.transform.scale = ReadVec2(t["scale"], 1.0f, 1.0f);
             }
 
-            // sprite
+            // sprite component
             if (eJson.contains("sprite")) {
+                auto& spr = AddSprite(e.id);
                 const auto& s = eJson["sprite"];
 
                 if (s.contains("texture")) {
                     const auto& tex = s["texture"];
-                    if (tex.contains("id"))   e.sprite.textureId = tex["id"].get<std::string>();
-                    if (tex.contains("path")) e.sprite.texturePath = tex["path"].get<std::string>();
-                    if (tex.contains("sRGB")) e.sprite.textureSRGB = tex["sRGB"].get<bool>();
+                    if (tex.contains("id"))   spr.textureId = tex["id"].get<std::string>();
+                    if (tex.contains("path")) spr.texturePath = tex["path"].get<std::string>();
+                    if (tex.contains("sRGB")) spr.textureSRGB = tex["sRGB"].get<bool>();
                 }
 
-                if (s.contains("dst"))   e.sprite.dst = ReadRectF(s["dst"], e.sprite.dst);
-                if (s.contains("src"))   e.sprite.src = ReadRectF(s["src"], e.sprite.src);
-                if (s.contains("color")) e.sprite.color = ReadColor4(s["color"], e.sprite.color);
-                if (s.contains("layer")) e.sprite.layer = s["layer"].get<int>();
+                if (s.contains("dst"))   spr.dst = ReadRectF(s["dst"], spr.dst);
+                if (s.contains("src"))   spr.src = ReadRectF(s["src"], spr.src);
+                if (s.contains("color")) spr.color = ReadColor4(s["color"], spr.color);
+                if (s.contains("layer")) spr.layer = s["layer"].get<int>();
             }
 
-            // collision
+            // collision component
             if (eJson.contains("collision") && !eJson["collision"].is_null()) {
                 const auto& c = eJson["collision"];
-
                 if (c.contains("type")) {
                     const std::string type = c["type"].get<std::string>();
                     const bool active = c.contains("active") ? c["active"].get<bool>() : true;
 
                     if (type == "circle") {
                         const float radius = c.contains("radius") ? c["radius"].get<float>() : 0.0f;
-                        AddCircleCollider(e, radius, active);
+                        AddCircleCollider(e.id, radius, active);
                     }
                     else if (type == "aabb") {
                         const float halfW = c.contains("halfW") ? c["halfW"].get<float>() : 0.0f;
                         const float halfH = c.contains("halfH") ? c["halfH"].get<float>() : 0.0f;
-                        AddAABBCollider(e, halfW, halfH, active);
+                        AddAABBCollider(e.id, halfW, halfH, active);
                     }
                 }
             }
         }
-
-        // Ensure future CreateEntity() uses a unique id
-        if (maxId >= m_nextID)
-            m_nextID = maxId + 1;
 
         ResolveAssets(assets);
 
@@ -263,44 +313,18 @@ namespace KibakoEngine {
 
     void Scene2D::ResolveAssets(AssetManager& assets)
     {
-        for (auto& e : m_entities) {
-            if (!e.active)
-                continue;
+        m_sprites.ForEach([&](EntityID, SpriteRenderer2D& spr)
+            {
+                if (!spr.texture &&
+                    !spr.textureId.empty() &&
+                    !spr.texturePath.empty()) {
 
-            if (!e.sprite.texture &&
-                !e.sprite.textureId.empty() &&
-                !e.sprite.texturePath.empty()) {
-
-                e.sprite.texture = assets.LoadTexture(
-                    e.sprite.textureId,
-                    e.sprite.texturePath,
-                    e.sprite.textureSRGB);
-            }
-        }
-    }
-
-    // ---- Collider helpers
-    CircleCollider2D* Scene2D::AddCircleCollider(Entity2D& e, float radius, bool active)
-    {
-        auto& c = m_circlePool.emplace_back();
-        c.radius = radius;
-        c.active = active;
-
-        e.collision.circle = &c;
-        e.collision.aabb = nullptr;
-        return &c;
-    }
-
-    AABBCollider2D* Scene2D::AddAABBCollider(Entity2D& e, float halfW, float halfH, bool active)
-    {
-        auto& b = m_aabbPool.emplace_back();
-        b.halfW = halfW;
-        b.halfH = halfH;
-        b.active = active;
-
-        e.collision.aabb = &b;
-        e.collision.circle = nullptr;
-        return &b;
+                    spr.texture = assets.LoadTexture(
+                        spr.textureId,
+                        spr.texturePath,
+                        spr.textureSRGB);
+                }
+            });
     }
 
 } // namespace KibakoEngine

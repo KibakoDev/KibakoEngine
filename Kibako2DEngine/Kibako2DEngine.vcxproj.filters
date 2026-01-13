@@ -80,6 +80,9 @@
     <ClInclude Include="include\KibakoEngine\UI\RmlUIContext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\KibakoEngine\Scene\ComponentStore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Collision\Collision2D.cpp">
