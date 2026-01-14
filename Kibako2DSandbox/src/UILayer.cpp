@@ -117,6 +117,8 @@ void UILayer::OnAttach()
     RebuildHierarchyUI();
     RefreshInspectorFromSelection(); // show hint by default
     m_mainMenuDoc->Show();
+
+    ui.GetContext()->Update();
 }
 
 void UILayer::OnDetach()

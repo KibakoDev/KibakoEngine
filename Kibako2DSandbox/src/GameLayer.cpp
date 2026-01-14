@@ -102,16 +102,6 @@ void GameLayer::UpdateScene(float dt)
     Entity2D* left = m_scene.FindEntity(m_entityLeft);
     Entity2D* right = m_scene.FindEntity(m_entityRight);
 
-    if (left) {
-        left->transform.position = { 430.0f, 450.0f };
-        left->transform.rotation = m_time * 0.8f;
-    }
-
-    if (right) {
-        right->transform.position = { 530.0f, 450.0f };
-        right->transform.rotation = -m_time * 0.2f;
-    }
-
     const CollisionComponent2D* leftCol = m_scene.Collisions().TryGet(m_entityLeft);
     const CollisionComponent2D* rightCol = m_scene.Collisions().TryGet(m_entityRight);
 
