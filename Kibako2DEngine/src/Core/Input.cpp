@@ -17,8 +17,14 @@ namespace KibakoEngine {
         m_wheelX = 0;
         m_wheelY = 0;
         m_textChar = 0;
+
         m_prevMouseButtons = m_mouseButtons;
+
+        // Snapshot pointer for this frame
         m_keyboard = SDL_GetKeyboardState(nullptr);
+
+        // Actions get updated per-frame using current & previous keyboard snapshots
+        UpdateActions();
     }
 
     void Input::HandleEvent(const SDL_Event& e)
@@ -78,5 +84,90 @@ namespace KibakoEngine {
         return ((m_mouseButtons & mask) != 0u) && ((m_prevMouseButtons & mask) == 0u);
     }
 
-} // namespace KibakoEngine
+    // ------------------------------------------------------------
+    // Actions
+    // ------------------------------------------------------------
 
+    void Input::BindAction(const std::string& action, SDL_Scancode scancode)
+    {
+        auto& st = m_actions[action];
+
+        // Avoid duplicates
+        if (std::find(st.bindings.begin(), st.bindings.end(), scancode) == st.bindings.end()) {
+            st.bindings.push_back(scancode);
+        }
+    }
+
+    void Input::ClearActionBindings(const std::string& action)
+    {
+        auto it = m_actions.find(action);
+        if (it == m_actions.end())
+            return;
+
+        it->second.bindings.clear();
+        it->second.down = false;
+        it->second.pressed = false;
+        it->second.released = false;
+    }
+
+    void Input::ClearAllActionBindings()
+    {
+        m_actions.clear();
+    }
+
+    bool Input::ActionDown(const std::string& action) const
+    {
+        auto it = m_actions.find(action);
+        if (it == m_actions.end())
+            return false;
+        return it->second.down;
+    }
+
+    bool Input::ActionPressed(const std::string& action) const
+    {
+        auto it = m_actions.find(action);
+        if (it == m_actions.end())
+            return false;
+        return it->second.pressed;
+    }
+
+    bool Input::ActionReleased(const std::string& action) const
+    {
+        auto it = m_actions.find(action);
+        if (it == m_actions.end())
+            return false;
+        return it->second.released;
+    }
+
+    float Input::ActionAxis1D(const std::string& negativeAction,
+        const std::string& positiveAction) const
+    {
+        const bool neg = ActionDown(negativeAction);
+        const bool pos = ActionDown(positiveAction);
+
+        if (neg == pos)
+            return 0.0f;
+        return pos ? 1.0f : -1.0f;
+    }
+
+    void Input::UpdateActions()
+    {
+        // Compute action state from current/previous keyboard snapshots
+        for (auto& [name, st] : m_actions) {
+            bool nowDown = false;
+            bool prevDown = false;
+
+            for (SDL_Scancode sc : st.bindings) {
+                const bool n = (m_keyboard && m_keyboard[sc] != 0);
+                const bool p = (m_prevKeyboard[sc] != 0);
+                nowDown |= n;
+                prevDown |= p;
+            }
+
+            st.down = nowDown;
+            st.pressed = (nowDown && !prevDown);
+            st.released = (!nowDown && prevDown);
+        }
+    }
+
+} // namespace KibakoEngine
