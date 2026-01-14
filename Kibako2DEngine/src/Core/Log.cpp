@@ -79,6 +79,40 @@ namespace KibakoEngine {
 #endif
         }
 
+        void OutputToConsole(FILE* stream, const char* text, bool useRed)
+        {
+#ifdef _WIN32
+            HANDLE handle = GetStdHandle(stream == stderr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE);
+            if (handle == INVALID_HANDLE_VALUE || handle == nullptr) {
+                std::fputs(text, stream);
+                return;
+            }
+
+            CONSOLE_SCREEN_BUFFER_INFO info{};
+            if (!GetConsoleScreenBufferInfo(handle, &info)) {
+                std::fputs(text, stream);
+                return;
+            }
+
+            WORD originalAttributes = info.wAttributes;
+            if (useRed) {
+                WORD redAttributes = static_cast<WORD>(FOREGROUND_RED | FOREGROUND_INTENSITY);
+                SetConsoleTextAttribute(handle, redAttributes);
+            }
+
+            std::fputs(text, stream);
+
+            if (useRed)
+                SetConsoleTextAttribute(handle, originalAttributes);
+#else
+            if (useRed)
+                std::fputs("\x1b[31m", stream);
+            std::fputs(text, stream);
+            if (useRed)
+                std::fputs("\x1b[0m", stream);
+#endif
+        }
+
         bool LocalTime(std::time_t time, std::tm& out)
         {
 #if defined(_WIN32)
@@ -235,8 +269,9 @@ namespace KibakoEngine {
                 buffer[offset++] = '\n';
             buffer[offset] = '\0';
 
-            FILE* stream = (level == LogLevel::Error || level == LogLevel::Critical) ? stderr : stdout;
-            std::fputs(buffer.data(), stream);
+            const bool isError = (level == LogLevel::Error || level == LogLevel::Critical);
+            FILE* stream = isError ? stderr : stdout;
+            OutputToConsole(stream, buffer.data(), isError);
             std::fflush(stream);
             OutputToDebugger(buffer.data());
         }
@@ -259,4 +294,3 @@ namespace KibakoEngine {
     }
 
 } // namespace KibakoEngine
-
