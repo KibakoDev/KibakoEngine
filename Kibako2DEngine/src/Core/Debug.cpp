@@ -26,6 +26,12 @@ namespace KibakoEngine::Debug {
         KbkCritical("Assert", "%s failed: (%s) -> %s (%s:%d)", type, condition, message ? message : "", filename, line);
     }
 
+    void ReportVerification(const char* condition, const char* message, const char* file, int line)
+    {
+        const char* filename = ExtractFilename(file);
+        KbkError("Verify", "VERIFY failed: (%s) -> %s (%s:%d)", condition, message ? message : "", filename, line);
+    }
+
     bool VerifyHRESULT(long hr, const char* expression, const char* file, int line)
     {
         if (hr >= 0)
@@ -41,4 +47,3 @@ namespace KibakoEngine::Debug {
     }
 
 } // namespace KibakoEngine::Debug
-

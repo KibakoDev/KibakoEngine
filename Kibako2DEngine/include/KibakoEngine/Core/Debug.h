@@ -6,6 +6,7 @@
 namespace KibakoEngine::Debug {
 
     void ReportAssertion(const char* type, const char* condition, const char* message, const char* file, int line);
+    void ReportVerification(const char* condition, const char* message, const char* file, int line);
     bool VerifyHRESULT(long hr, const char* expression, const char* file, int line);
 
 } // namespace KibakoEngine::Debug
@@ -46,11 +47,11 @@ namespace KibakoEngine::Debug {
 #if KBK_DEBUG_BUILD
 #    define KBK_VERIFY(condition, message) KBK_ASSERT((condition), (message))
 #else
-#    define KBK_VERIFY(condition, message)                                                                  \
-        do {                                                                                                \
-            if (!(condition)) {                                                                             \
-                ::KibakoEngine::Debug::ReportAssertion("VERIFY", #condition, (message), __FILE__, __LINE__); \
-            }                                                                                               \
+#    define KBK_VERIFY(condition, message)                                                          \
+        do {                                                                                        \
+            if (!(condition)) {                                                                     \
+                ::KibakoEngine::Debug::ReportVerification(#condition, (message), __FILE__, __LINE__); \
+            }                                                                                       \
         } while (0)
 #endif
 
