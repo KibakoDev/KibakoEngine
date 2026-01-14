@@ -20,12 +20,11 @@ namespace KibakoEngine {
 
         m_prevMouseButtons = m_mouseButtons;
 
-        // Current keyboard snapshot pointer (SDL updates this when pumping events)
+        // Snapshot pointer for this frame (SDL updates this state when events are pumped)
         m_keyboard = SDL_GetKeyboardState(nullptr);
 
         // IMPORTANT:
-        // We do NOT update actions here because SDL may not have processed
-        // this frame's events yet. We update actions in AfterEvents().
+        // Don't UpdateActions() here. It must happen AFTER SDL events are pumped.
     }
 
     void Input::HandleEvent(const SDL_Event& e)
@@ -50,7 +49,7 @@ namespace KibakoEngine {
             break;
 
         case SDL_TEXTINPUT:
-            // First ASCII printable char (simple + predictable for now)
+            // First ASCII printable char (simple + deterministic for now)
             if (const unsigned char c = static_cast<unsigned char>(e.text.text[0]);
                 c >= 32u && c < 127u) {
                 m_textChar = c;
@@ -64,13 +63,13 @@ namespace KibakoEngine {
 
     void Input::AfterEvents()
     {
-        // Now SDL has pumped events -> keyboard state reflects this frame correctly
+        // Now SDL has processed the events, so keyboard state is up-to-date
         UpdateActions();
     }
 
     void Input::EndFrame()
     {
-        // Store current keyboard as previous for next frame
+        // Store current keyboard snapshot as previous for next frame
         if (m_keyboard) {
             std::memcpy(m_prevKeyboard.data(), m_keyboard, m_prevKeyboard.size());
         }
@@ -82,7 +81,7 @@ namespace KibakoEngine {
 
     bool Input::KeyDown(SDL_Scancode scancode) const
     {
-        return m_keyboard && m_keyboard[scancode] != 0;
+        return m_keyboard && (m_keyboard[scancode] != 0);
     }
 
     bool Input::KeyPressed(SDL_Scancode scancode) const
@@ -183,13 +182,12 @@ namespace KibakoEngine {
     void Input::UpdateActions()
     {
         // Compute action state from current/previous keyboard snapshots
-        // NOTE: This is O(#actions * #bindings) which is fine for a solo engine (small count).
         for (auto& [name, st] : m_actions) {
             bool nowDown = false;
             bool prevDown = false;
 
             for (SDL_Scancode sc : st.bindings) {
-                const bool n = (m_keyboard && m_keyboard[sc] != 0);
+                const bool n = (m_keyboard && (m_keyboard[sc] != 0));
                 const bool p = (m_prevKeyboard[sc] != 0);
                 nowDown |= n;
                 prevDown |= p;

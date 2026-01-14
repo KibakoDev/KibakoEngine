@@ -18,7 +18,9 @@ public:
 
     void OnAttach() override;
     void OnDetach() override;
-    void OnUpdate(float dt) override;
+
+    void OnUpdate(float dt) override;          // variable
+    void OnFixedUpdate(float fixedDt) override; // fixed
     void OnRender(KibakoEngine::SpriteBatch2D& batch) override;
 
     // ---- Editor access
@@ -26,21 +28,19 @@ public:
     const KibakoEngine::Scene2D& GetScene() const { return m_scene; }
 
 private:
-    void UpdateScene(float dt);
+    void FixedSimStep(float fixedDt);
     void RenderCollisionDebug(KibakoEngine::SpriteBatch2D& batch);
 
 private:
     KibakoEngine::Application& m_app;
-
-    // Scene (data-driven)
     KibakoEngine::Scene2D m_scene;
 
-    // IDs resolved from scene data
     std::uint32_t m_entityLeft = 0;
     std::uint32_t m_entityRight = 0;
 
-    // Debug / state
     bool  m_showCollisionDebug = false;
     bool  m_lastCollision = false;
-    float m_time = 0.0f;
+
+    // Sim time should advance in fixed step
+    float m_simTime = 0.0f;
 };

@@ -18,6 +18,11 @@ namespace KibakoEngine {
     {
         constexpr const char* kLogChannel = "App";
 
+        // Fixed timestep (simulation)
+        constexpr double kFixedStep = 1.0 / 60.0; // 60 Hz
+        constexpr double kMaxFrameDt = 0.25;      // clamp raw dt (250ms)
+        constexpr int    kMaxSubSteps = 8;        // anti spiral-of-death
+
         void AnnounceBreakpointStop()
         {
             const char* reason = LastBreakpointMessage();
@@ -77,6 +82,7 @@ namespace KibakoEngine {
             m_window = nullptr;
         }
         SDL_Quit();
+
         m_hwnd = nullptr;
         m_hasPendingResize = false;
         m_fullscreen = false;
@@ -163,16 +169,13 @@ namespace KibakoEngine {
         m_layers.clear();
 
         m_assets.Shutdown();
-
         GameServices::Shutdown();
-
         m_ui.Shutdown();
 
         m_renderer.Shutdown();
         DestroyWindowSDL();
 
         Profiler::Flush();
-
         m_running = false;
     }
 
@@ -197,6 +200,7 @@ namespace KibakoEngine {
             switch (evt.type) {
             case SDL_QUIT:
                 return false;
+
             case SDL_WINDOWEVENT:
                 switch (evt.window.event) {
                 case SDL_WINDOWEVENT_SIZE_CHANGED:
@@ -212,6 +216,7 @@ namespace KibakoEngine {
                     break;
                 }
                 break;
+
             case SDL_KEYDOWN:
                 if (!evt.key.repeat &&
                     (evt.key.keysym.sym == SDLK_RETURN || evt.key.keysym.sym == SDLK_KP_ENTER) &&
@@ -221,6 +226,7 @@ namespace KibakoEngine {
                 if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
                     return false;
                 break;
+
             default:
                 break;
             }
@@ -231,7 +237,10 @@ namespace KibakoEngine {
             if (HasBreakpointRequest())
                 return false;
         }
+
+        // IMPORTANT: finalize action states AFTER event pumping
         m_input.AfterEvents();
+
         ApplyPendingResize();
         return true;
     }
@@ -261,11 +270,9 @@ namespace KibakoEngine {
 
         KbkLog(kLogChannel, "Resize -> %dx%d", m_width, m_height);
 
-        // Resize the renderer to match the new drawable (backbuffer) size
         m_renderer.OnResize(static_cast<std::uint32_t>(m_width),
             static_cast<std::uint32_t>(m_height));
 
-        // Resize RmlUI so its layout matches the viewport
         m_ui.OnResize(m_width, m_height);
     }
 
@@ -314,6 +321,8 @@ namespace KibakoEngine {
     {
         KBK_ASSERT(m_running, "Run() called before Init()");
 
+        double accumulator = 0.0;
+
         while (PumpEvents()) {
 
             if (ConsumeBreakpointRequest()) {
@@ -323,36 +332,68 @@ namespace KibakoEngine {
 
             KBK_PROFILE_FRAME("Frame");
 
-            const double rawDt = m_time.DeltaSeconds();
-            GameServices::Update(rawDt);
-            const float scaledDt = static_cast<float>(GameServices::GetScaledDeltaTime());
+            // Raw dt (seconds) clamped to avoid spikes (alt-tab, breakpoints, etc.)
+            double rawDt = m_time.DeltaSeconds();
+            if (rawDt < 0.0) rawDt = 0.0;
+            if (rawDt > kMaxFrameDt) rawDt = kMaxFrameDt;
 
-            // Step 1: update every layer (game logic, UI logic, etc.)
-            for (Layer* layer : m_layers) {
-                if (layer)
-                    layer->OnUpdate(scaledDt);
+            // Global time services (pause/timeScale)
+            GameServices::Update(rawDt);
+
+            // Accumulate scaled dt for fixed update
+            const double scaledDt = GameServices::GetScaledDeltaTime();
+            accumulator += scaledDt;
+
+            // ------------------------------------------------------------
+            // A) Fixed update loop (deterministic simulation)
+            // ------------------------------------------------------------
+            int subSteps = 0;
+            while (accumulator >= kFixedStep && subSteps < kMaxSubSteps) {
+
+                const float fdt = static_cast<float>(kFixedStep);
+
+                for (Layer* layer : m_layers) {
+                    if (layer)
+                        layer->OnFixedUpdate(fdt);
+                }
+
+                accumulator -= kFixedStep;
+                ++subSteps;
             }
 
+            // If we hit max substeps, drop the rest to avoid spiral-of-death
+            if (subSteps == kMaxSubSteps) {
+                accumulator = 0.0;
+            }
+
+            // ------------------------------------------------------------
+            // B) Variable update (camera smoothing, UI logic, etc.)
+            // ------------------------------------------------------------
+            const float frameDt = static_cast<float>(scaledDt);
+
+            for (Layer* layer : m_layers) {
+                if (layer)
+                    layer->OnUpdate(frameDt);
+            }
+
+            // ------------------------------------------------------------
+            // C) Render
+            // ------------------------------------------------------------
             BeginFrame(clearColor);
 
             SpriteBatch2D& batch = m_renderer.Batch();
             batch.Begin(m_renderer.Camera().GetViewProjectionT());
 
-            // Step 2: render game layers into the SpriteBatch
             for (Layer* layer : m_layers) {
                 if (layer)
                     layer->OnRender(batch);
             }
 
-            // Step 3: update RmlUI state
-            m_ui.Update(scaledDt);
-
-            // Step 4: render RmlUI (it submits geometry to SpriteBatch2D)
+            // RmlUI tick + render (submits to batch)
+            m_ui.Update(frameDt);
             m_ui.Render();
 
-            // Step 5: flush the batch and upload geometry to the GPU
             batch.End();
-
             EndFrame(waitForVSync);
 
             if (ConsumeBreakpointRequest()) {

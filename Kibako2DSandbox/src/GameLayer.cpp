@@ -41,12 +41,12 @@ void GameLayer::OnAttach()
     if (auto* e = m_scene.FindByName("LeftStar"))
         m_entityLeft = e->id;
     else
-        KbkError("Sandbox", "Entity 'LeftStar' not found");
+        KbkError(kLogChannel, "Entity 'LeftStar' not found");
 
     if (auto* e = m_scene.FindByName("RightStar"))
         m_entityRight = e->id;
     else
-        KbkError("Sandbox", "Entity 'RightStar' not found");
+        KbkError(kLogChannel, "Entity 'RightStar' not found");
 
     KbkLog(kLogChannel,
         "GameLayer attached (scene loaded, %zu entities)",
@@ -58,19 +58,19 @@ void GameLayer::OnDetach()
     KBK_PROFILE_SCOPE("GameLayerDetach");
 
     m_scene.Clear();
-
     m_entityLeft = 0;
     m_entityRight = 0;
 
     m_showCollisionDebug = false;
     m_lastCollision = false;
-    m_time = 0.0f;
+    m_simTime = 0.0f;
 }
 
-void GameLayer::OnUpdate(float dt)
+void GameLayer::OnUpdate(float /*dt*/)
 {
     KBK_PROFILE_SCOPE("GameLayerUpdate");
 
+    // Variable-step: toggles / app-level inputs
     auto& input = m_app.InputSys();
 
     if (input.KeyPressed(SDL_SCANCODE_F1))
@@ -82,7 +82,13 @@ void GameLayer::OnUpdate(float dt)
         SDL_PushEvent(&quit);
     }
 
-    UpdateScene(dt);
+    // (optionnel) camera smoothing / UI interactions / etc...
+}
+
+void GameLayer::OnFixedUpdate(float fixedDt)
+{
+    KBK_PROFILE_SCOPE("GameLayerFixedUpdate");
+    FixedSimStep(fixedDt);
 }
 
 void GameLayer::OnRender(SpriteBatch2D& batch)
@@ -95,12 +101,22 @@ void GameLayer::OnRender(SpriteBatch2D& batch)
         RenderCollisionDebug(batch);
 }
 
-void GameLayer::UpdateScene(float dt)
+void GameLayer::FixedSimStep(float fixedDt)
 {
-    m_time += dt;
+    // Deterministic sim time
+    m_simTime += fixedDt;
 
     Entity2D* left = m_scene.FindEntity(m_entityLeft);
     Entity2D* right = m_scene.FindEntity(m_entityRight);
+
+    // Example deterministic motion (same every run)
+    if (left) {
+        left->transform.rotation = m_simTime * 0.8f;
+    }
+
+    if (right) {
+        right->transform.rotation = -m_simTime * 0.2f;
+    }
 
     const CollisionComponent2D* leftCol = m_scene.Collisions().TryGet(m_entityLeft);
     const CollisionComponent2D* rightCol = m_scene.Collisions().TryGet(m_entityRight);
@@ -112,19 +128,19 @@ void GameLayer::UpdateScene(float dt)
     }
 
     if (auto* spr = m_scene.Sprites().TryGet(m_entityLeft)) {
-        spr->color = hit
-            ? Color4::White()
+        spr->color = hit ? Color4::White()
             : Color4{ 0.9f, 0.9f, 0.9f, 1.0f };
     }
 
     if (auto* spr = m_scene.Sprites().TryGet(m_entityRight)) {
-        spr->color = hit
-            ? Color4{ 0.85f, 0.85f, 0.85f, 1.0f }
+        spr->color = hit ? Color4{ 0.85f, 0.85f, 0.85f, 1.0f }
         : Color4{ 0.55f, 0.55f, 0.55f, 1.0f };
     }
 
     m_lastCollision = hit;
-    m_scene.Update(dt);
+
+    // If Scene2D::Update becomes "simulation update", it belongs here
+    m_scene.Update(fixedDt);
 }
 
 void GameLayer::RenderCollisionDebug(SpriteBatch2D& batch)

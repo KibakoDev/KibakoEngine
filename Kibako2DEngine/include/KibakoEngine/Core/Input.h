@@ -89,26 +89,26 @@ namespace KibakoEngine {
             bool released = false;
         };
 
-        // Transparent hash so we can query with std::string_view without allocating
+        // Heterogeneous lookup (string + string_view) without MSVC ambiguity
         struct TransparentHash
         {
             using is_transparent = void;
-            size_t operator()(std::string_view sv) const noexcept
-            {
-                return std::hash<std::string_view>{}(sv);
-            }
-            size_t operator()(const std::string& s) const noexcept
-            {
-                return std::hash<std::string_view>{}(s);
-            }
+            size_t operator()(std::string_view sv) const noexcept { return std::hash<std::string_view>{}(sv); }
+            size_t operator()(const std::string& s) const noexcept { return std::hash<std::string_view>{}(s); }
         };
 
         struct TransparentEq
         {
             using is_transparent = void;
-            bool operator()(std::string_view a, std::string_view b) const noexcept { return a == b; }
-            bool operator()(const std::string& a, std::string_view b) const noexcept { return a == b; }
-            bool operator()(std::string_view a, const std::string& b) const noexcept { return a == b; }
+
+            static std::string_view ToSV(std::string_view sv) noexcept { return sv; }
+            static std::string_view ToSV(const std::string& s) noexcept { return std::string_view(s); }
+
+            template <typename A, typename B>
+            bool operator()(const A& a, const B& b) const noexcept
+            {
+                return ToSV(a) == ToSV(b);
+            }
         };
 
         std::unordered_map<std::string, ActionState, TransparentHash, TransparentEq> m_actions;

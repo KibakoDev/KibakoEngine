@@ -2,10 +2,12 @@
 #pragma once
 
 #include <string>
+#include <utility>
 
 namespace KibakoEngine
 {
     class Application;
+    class SpriteBatch2D;
 
     // Minimal interface used by the application loop to drive layers.
     class Layer
@@ -16,10 +18,15 @@ namespace KibakoEngine
 
         virtual void OnAttach() {}
         virtual void OnDetach() {}
+
+        // Variable step (once per frame)
         virtual void OnUpdate(float /*dt*/) {}
 
-        // Rendering is delegated to the concrete layer.
-        virtual void OnRender(class SpriteBatch2D& /*batch*/) {}
+        // Fixed step 
+        virtual void OnFixedUpdate(float /*fixedDt*/) {}
+
+        // Render step
+        virtual void OnRender(SpriteBatch2D& /*batch*/) {}
 
         const std::string& Name() const { return m_name; }
 
@@ -30,4 +37,3 @@ namespace KibakoEngine
         std::string m_name;
     };
 } // namespace KibakoEngine
-
