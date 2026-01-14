@@ -231,7 +231,7 @@ namespace KibakoEngine {
             if (HasBreakpointRequest())
                 return false;
         }
-
+        m_input.AfterEvents();
         ApplyPendingResize();
         return true;
     }

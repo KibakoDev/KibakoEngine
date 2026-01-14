@@ -1,53 +1,70 @@
-// Tracks keyboard and mouse state on a per-frame basis
+// Tracks keyboard and mouse state on a per-frame basis + Input Actions
 #pragma once
 
 #include <SDL2/SDL.h>
-#include <cstdint>
+
 #include <array>
+#include <cstdint>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
 namespace KibakoEngine {
 
-    class Input {
+    class Input
+    {
     public:
         Input();
 
+        // Called at the beginning of the frame (before event pumping)
         void BeginFrame();
+
+        // Called for each SDL event
         void HandleEvent(const SDL_Event& e);
+
+        // Called once after all events are pumped (IMPORTANT for action states)
+        void AfterEvents();
+
+        // Called at the end of the frame (after rendering)
         void EndFrame();
 
+        // ------------------------------------------------------------
+        // Low-level keyboard
+        // ------------------------------------------------------------
         [[nodiscard]] bool KeyDown(SDL_Scancode scancode) const;
         [[nodiscard]] bool KeyPressed(SDL_Scancode scancode) const;
+        [[nodiscard]] bool KeyReleased(SDL_Scancode scancode) const;
 
+        // ------------------------------------------------------------
+        // Mouse
+        // ------------------------------------------------------------
         [[nodiscard]] bool MouseDown(uint8_t button) const;
         [[nodiscard]] bool MousePressed(uint8_t button) const;
+        [[nodiscard]] bool MouseReleased(uint8_t button) const;
 
         [[nodiscard]] int  MouseX() const { return m_mouseX; }
         [[nodiscard]] int  MouseY() const { return m_mouseY; }
         [[nodiscard]] int  WheelX() const { return m_wheelX; }
         [[nodiscard]] int  WheelY() const { return m_wheelY; }
 
+        // Single ASCII char (32..126) captured this frame, 0 if none
         [[nodiscard]] uint32_t TextChar() const { return m_textChar; }
 
         // ------------------------------------------------------------
-        // Input Actions (Phase: ergonomics)
+        // Input Actions (ergonomic layer)
         // ------------------------------------------------------------
-
-        // Adds a binding. Supports multiple bindings per action.
-        void BindAction(const std::string& action, SDL_Scancode scancode);
-        void ClearActionBindings(const std::string& action);
+        void BindAction(std::string action, SDL_Scancode scancode);
+        void ClearActionBindings(std::string_view action);
         void ClearAllActionBindings();
 
-        [[nodiscard]] bool ActionDown(const std::string& action) const;
-        [[nodiscard]] bool ActionPressed(const std::string& action) const;
-        [[nodiscard]] bool ActionReleased(const std::string& action) const;
+        [[nodiscard]] bool ActionDown(std::string_view action) const;
+        [[nodiscard]] bool ActionPressed(std::string_view action) const;
+        [[nodiscard]] bool ActionReleased(std::string_view action) const;
 
-        // Convenience: axis made of two actions (e.g. Up/Down or Left/Right)
-        // Returns -1..+1
-        [[nodiscard]] float ActionAxis1D(const std::string& negativeAction,
-            const std::string& positiveAction) const;
+        // Returns -1..+1 (e.g. Left/Right)
+        [[nodiscard]] float ActionAxis1D(std::string_view negativeAction,
+            std::string_view positiveAction) const;
 
     private:
         // --- Low-level state
@@ -72,8 +89,31 @@ namespace KibakoEngine {
             bool released = false;
         };
 
-        std::unordered_map<std::string, ActionState> m_actions;
+        // Transparent hash so we can query with std::string_view without allocating
+        struct TransparentHash
+        {
+            using is_transparent = void;
+            size_t operator()(std::string_view sv) const noexcept
+            {
+                return std::hash<std::string_view>{}(sv);
+            }
+            size_t operator()(const std::string& s) const noexcept
+            {
+                return std::hash<std::string_view>{}(s);
+            }
+        };
 
+        struct TransparentEq
+        {
+            using is_transparent = void;
+            bool operator()(std::string_view a, std::string_view b) const noexcept { return a == b; }
+            bool operator()(const std::string& a, std::string_view b) const noexcept { return a == b; }
+            bool operator()(std::string_view a, const std::string& b) const noexcept { return a == b; }
+        };
+
+        std::unordered_map<std::string, ActionState, TransparentHash, TransparentEq> m_actions;
+
+    private:
         void UpdateActions();
     };
 

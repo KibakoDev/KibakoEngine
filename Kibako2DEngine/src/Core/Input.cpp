@@ -1,4 +1,4 @@
-// Tracks keyboard and mouse input across frames using SDL events
+// Tracks keyboard/mouse input across frames using SDL + Input Actions
 #include "KibakoEngine/Core/Input.h"
 
 #include <algorithm>
@@ -8,8 +8,8 @@ namespace KibakoEngine {
 
     Input::Input()
     {
-        m_keyboard = nullptr;
         std::fill(m_prevKeyboard.begin(), m_prevKeyboard.end(), static_cast<uint8_t>(0));
+        m_keyboard = nullptr;
     }
 
     void Input::BeginFrame()
@@ -20,11 +20,12 @@ namespace KibakoEngine {
 
         m_prevMouseButtons = m_mouseButtons;
 
-        // Snapshot pointer for this frame
+        // Current keyboard snapshot pointer (SDL updates this when pumping events)
         m_keyboard = SDL_GetKeyboardState(nullptr);
 
-        // Actions get updated per-frame using current & previous keyboard snapshots
-        UpdateActions();
+        // IMPORTANT:
+        // We do NOT update actions here because SDL may not have processed
+        // this frame's events yet. We update actions in AfterEvents().
     }
 
     void Input::HandleEvent(const SDL_Event& e)
@@ -34,32 +35,50 @@ namespace KibakoEngine {
             m_mouseX = e.motion.x;
             m_mouseY = e.motion.y;
             break;
+
         case SDL_MOUSEBUTTONDOWN:
             m_mouseButtons |= SDL_BUTTON(e.button.button);
             break;
+
         case SDL_MOUSEBUTTONUP:
             m_mouseButtons &= ~SDL_BUTTON(e.button.button);
             break;
+
         case SDL_MOUSEWHEEL:
             m_wheelX += e.wheel.x;
             m_wheelY += e.wheel.y;
             break;
+
         case SDL_TEXTINPUT:
-            if (const unsigned char c = static_cast<unsigned char>(e.text.text[0]); c >= 32u && c < 127u) {
+            // First ASCII printable char (simple + predictable for now)
+            if (const unsigned char c = static_cast<unsigned char>(e.text.text[0]);
+                c >= 32u && c < 127u) {
                 m_textChar = c;
             }
             break;
+
         default:
             break;
         }
     }
 
+    void Input::AfterEvents()
+    {
+        // Now SDL has pumped events -> keyboard state reflects this frame correctly
+        UpdateActions();
+    }
+
     void Input::EndFrame()
     {
+        // Store current keyboard as previous for next frame
         if (m_keyboard) {
             std::memcpy(m_prevKeyboard.data(), m_keyboard, m_prevKeyboard.size());
         }
     }
+
+    // ------------------------------------------------------------
+    // Keyboard
+    // ------------------------------------------------------------
 
     bool Input::KeyDown(SDL_Scancode scancode) const
     {
@@ -73,6 +92,17 @@ namespace KibakoEngine {
         return (now != 0u) && (prev == 0u);
     }
 
+    bool Input::KeyReleased(SDL_Scancode scancode) const
+    {
+        const uint8_t now = m_keyboard ? m_keyboard[scancode] : 0;
+        const uint8_t prev = m_prevKeyboard[scancode];
+        return (now == 0u) && (prev != 0u);
+    }
+
+    // ------------------------------------------------------------
+    // Mouse
+    // ------------------------------------------------------------
+
     bool Input::MouseDown(uint8_t button) const
     {
         return (m_mouseButtons & SDL_BUTTON(button)) != 0u;
@@ -84,13 +114,19 @@ namespace KibakoEngine {
         return ((m_mouseButtons & mask) != 0u) && ((m_prevMouseButtons & mask) == 0u);
     }
 
+    bool Input::MouseReleased(uint8_t button) const
+    {
+        const uint32_t mask = SDL_BUTTON(button);
+        return ((m_mouseButtons & mask) == 0u) && ((m_prevMouseButtons & mask) != 0u);
+    }
+
     // ------------------------------------------------------------
     // Actions
     // ------------------------------------------------------------
 
-    void Input::BindAction(const std::string& action, SDL_Scancode scancode)
+    void Input::BindAction(std::string action, SDL_Scancode scancode)
     {
-        auto& st = m_actions[action];
+        auto& st = m_actions[std::move(action)];
 
         // Avoid duplicates
         if (std::find(st.bindings.begin(), st.bindings.end(), scancode) == st.bindings.end()) {
@@ -98,7 +134,7 @@ namespace KibakoEngine {
         }
     }
 
-    void Input::ClearActionBindings(const std::string& action)
+    void Input::ClearActionBindings(std::string_view action)
     {
         auto it = m_actions.find(action);
         if (it == m_actions.end())
@@ -115,32 +151,26 @@ namespace KibakoEngine {
         m_actions.clear();
     }
 
-    bool Input::ActionDown(const std::string& action) const
+    bool Input::ActionDown(std::string_view action) const
     {
         auto it = m_actions.find(action);
-        if (it == m_actions.end())
-            return false;
-        return it->second.down;
+        return (it != m_actions.end()) ? it->second.down : false;
     }
 
-    bool Input::ActionPressed(const std::string& action) const
+    bool Input::ActionPressed(std::string_view action) const
     {
         auto it = m_actions.find(action);
-        if (it == m_actions.end())
-            return false;
-        return it->second.pressed;
+        return (it != m_actions.end()) ? it->second.pressed : false;
     }
 
-    bool Input::ActionReleased(const std::string& action) const
+    bool Input::ActionReleased(std::string_view action) const
     {
         auto it = m_actions.find(action);
-        if (it == m_actions.end())
-            return false;
-        return it->second.released;
+        return (it != m_actions.end()) ? it->second.released : false;
     }
 
-    float Input::ActionAxis1D(const std::string& negativeAction,
-        const std::string& positiveAction) const
+    float Input::ActionAxis1D(std::string_view negativeAction,
+        std::string_view positiveAction) const
     {
         const bool neg = ActionDown(negativeAction);
         const bool pos = ActionDown(positiveAction);
@@ -153,6 +183,7 @@ namespace KibakoEngine {
     void Input::UpdateActions()
     {
         // Compute action state from current/previous keyboard snapshots
+        // NOTE: This is O(#actions * #bindings) which is fine for a solo engine (small count).
         for (auto& [name, st] : m_actions) {
             bool nowDown = false;
             bool prevDown = false;
