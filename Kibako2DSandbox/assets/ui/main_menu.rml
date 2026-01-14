@@ -1,13 +1,78 @@
 <rml>
   <head>
-    <title>Centered Text Test</title>
+    <title>Kibako Editor</title>
     <link type="text/rcss" href="main_menu.rcss" />
   </head>
+
   <body>
-    <div id="menu">
-      <h1 id="title">Kibako Engine UI</h1>
-      <button id="btn_quit">Quit</button>
-      <div id="bottom">
+    <!-- Top-left editor panel -->
+    <div id="editor_root">
+      <!-- Topbar -->
+      <div id="editor_topbar">
+        <div id="editor_title">Kibako Editor</div>
+
+        <div id="editor_actions">
+          <button id="btn_apply">Apply</button>
+          <button id="btn_quit">Quit</button>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div id="editor_body">
+        <!-- Hierarchy -->
+        <div class="panel" id="panel_hierarchy">
+          <div class="panel_header">
+            <div class="panel_title">Hierarchy</div>
+          </div>
+
+          <!-- Filled by UILayer.cpp -->
+          <div id="hierarchy_list"></div>
+        </div>
+
+        <!-- Inspector -->
+        <div class="panel" id="panel_inspector">
+          <div class="panel_header">
+            <div class="panel_title">Inspector</div>
+          </div>
+
+          <div id="inspector_content">
+            <div id="inspector_hint" class="hint">
+              Select an entity to inspect it.
+            </div>
+
+            <div class="row">
+              <div class="label">Name</div>
+              <input id="ins_name" type="text" value="" />
+            </div>
+
+            <div class="section_title">Transform</div>
+
+            <div class="row">
+              <div class="label">Pos</div>
+              <div class="fields2">
+                <input id="ins_pos_x" type="text" value="0" />
+                <input id="ins_pos_y" type="text" value="0" />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="label">Rot</div>
+              <input id="ins_rot" type="text" value="0" />
+            </div>
+
+            <div class="row">
+              <div class="label">Scale</div>
+              <div class="fields2">
+                <input id="ins_scale_x" type="text" value="1" />
+                <input id="ins_scale_y" type="text" value="1" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div id="editor_footer">
         <img id="logo" src="img/KibakoEngine_Logo_Black.png" />
         <p id="commit">28118fe</p>
       </div>

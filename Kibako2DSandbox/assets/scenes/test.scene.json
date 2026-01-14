@@ -5,13 +5,11 @@
       "id": 1,
       "name": "LeftStar",
       "active": true,
-
       "transform": {
         "pos": [ 430.0, 450.0 ],
         "rot": 0.0,
         "scale": [ 1.0, 1.0 ]
       },
-
       "sprite": {
         "texture": {
           "id": "star",
@@ -23,25 +21,21 @@
         "color": [ 1.0, 1.0, 1.0, 1.0 ],
         "layer": 0
       },
-
       "collision": {
         "type": "circle",
         "radius": 32.0,
         "active": true
       }
     },
-
     {
       "id": 2,
       "name": "RightStar",
       "active": true,
-
       "transform": {
         "pos": [ 530.0, 450.0 ],
         "rot": 0.0,
         "scale": [ 1.0, 1.0 ]
       },
-
       "sprite": {
         "texture": {
           "id": "star",
@@ -53,7 +47,6 @@
         "color": [ 0.55, 0.55, 0.55, 1.0 ],
         "layer": 1
       },
-
       "collision": {
         "type": "circle",
         "radius": 32.0,

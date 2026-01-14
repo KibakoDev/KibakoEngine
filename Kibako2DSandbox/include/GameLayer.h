@@ -21,6 +21,10 @@ public:
     void OnUpdate(float dt) override;
     void OnRender(KibakoEngine::SpriteBatch2D& batch) override;
 
+    // ---- Editor access
+    KibakoEngine::Scene2D& GetScene() { return m_scene; }
+    const KibakoEngine::Scene2D& GetScene() const { return m_scene; }
+
 private:
     void UpdateScene(float dt);
     void RenderCollisionDebug(KibakoEngine::SpriteBatch2D& batch);

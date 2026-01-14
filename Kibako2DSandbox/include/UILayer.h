@@ -1,22 +1,23 @@
 #pragma once
 
 #include "KibakoEngine/Core/Layer.h"
+#include <cstdint>
 
 namespace KibakoEngine {
     class Application;
     class SpriteBatch2D;
+    class Scene2D;
 }
 
 namespace Rml {
     class ElementDocument;
+    class Element;
 }
 
 class UILayer final : public KibakoEngine::Layer
 {
 public:
-    explicit UILayer(KibakoEngine::Application& app);
-
-    // Uses the shared RmlUI context for pixel-perfect overlays
+    UILayer(KibakoEngine::Application& app, KibakoEngine::Scene2D& scene);
 
     void OnAttach() override;
     void OnDetach() override;
@@ -24,8 +25,18 @@ public:
     void OnRender(KibakoEngine::SpriteBatch2D& batch) override;
 
 private:
-    KibakoEngine::Application& m_app;
+    void RebuildHierarchyUI();
+    void SetSelectedEntity(std::uint32_t id);
 
-    // Currently manages only the main menu UI document
+    void RefreshInspectorFromSelection();
+    void ApplyInspectorToSelection();
+
+private:
+    KibakoEngine::Application& m_app;
+    KibakoEngine::Scene2D& m_scene;
+
     Rml::ElementDocument* m_mainMenuDoc = nullptr;
+    Rml::Element* m_hierarchyList = nullptr;
+
+    std::uint32_t m_selectedEntityId = 0;
 };

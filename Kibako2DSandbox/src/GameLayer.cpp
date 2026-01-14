@@ -38,8 +38,15 @@ void GameLayer::OnAttach()
         return;
     }
 
-    m_entityLeft = 1;
-    m_entityRight = 2;
+    if (auto* e = m_scene.FindByName("LeftStar"))
+        m_entityLeft = e->id;
+    else
+        KbkError("Sandbox", "Entity 'LeftStar' not found");
+
+    if (auto* e = m_scene.FindByName("RightStar"))
+        m_entityRight = e->id;
+    else
+        KbkError("Sandbox", "Entity 'RightStar' not found");
 
     KbkLog(kLogChannel,
         "GameLayer attached (scene loaded, %zu entities)",

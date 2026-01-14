@@ -27,7 +27,7 @@ int main()
     }
 
     GameLayer gameLayer(app);
-    UILayer   uiLayer(app);
+    UILayer   uiLayer(app, gameLayer.GetScene());
 
     app.PushLayer(&gameLayer);
     app.PushLayer(&uiLayer);
