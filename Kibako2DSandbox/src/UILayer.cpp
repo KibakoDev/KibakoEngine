@@ -11,6 +11,8 @@
 #include <RmlUi/Core/Event.h>
 #include <RmlUi/Core/EventListener.h>
 
+#include <SDL2/SDL_events.h>
+
 #include <functional>
 #include <string>
 #include <utility>
@@ -19,33 +21,36 @@ using namespace KibakoEngine;
 
 namespace
 {
-    constexpr const char* kLogChannel = "EditorUI";
+    constexpr const char* kLogChannel = "UI";
 
     class UiListener final : public Rml::EventListener
     {
     public:
         using Callback = std::function<void(Rml::Event&)>;
 
-        explicit UiListener(Callback cb) : m_cb(std::move(cb)) {}
-        void ProcessEvent(Rml::Event& e) override { if (m_cb) m_cb(e); }
-        void OnDetach(Rml::Element*) override { delete this; }
+        explicit UiListener(Callback cb)
+            : m_callback(std::move(cb))
+        {
+        }
+
+        void ProcessEvent(Rml::Event& event) override
+        {
+            if (m_callback)
+                m_callback(event);
+        }
+
+        void OnDetach(Rml::Element*) override
+        {
+            delete this;
+        }
 
     private:
-        Callback m_cb;
+        Callback m_callback;
     };
-
-    static std::string MakeEntityLabel(const Scene2D& scene, const Entity2D& e)
-    {
-        if (const auto* n = scene.TryGetName(e.id)) {
-            if (!n->name.empty())
-                return n->name;
-        }
-        return "Entity " + std::to_string(e.id);
-    }
 }
 
 UILayer::UILayer(Application& app)
-    : Layer("Sandbox.EditorUI")
+    : Layer("Sandbox.UILayer")
     , m_app(app)
 {
 }
@@ -54,6 +59,27 @@ void UILayer::OnAttach()
 {
     auto& ui = m_app.UI();
 
+    // --- Main menu
+    m_mainMenuDoc = ui.LoadDocument("assets/ui/main_menu.rml");
+    if (!m_mainMenuDoc) {
+        KbkError(kLogChannel, "Failed to load assets/ui/main_menu.rml");
+        return;
+    }
+
+    if (auto* quit = m_mainMenuDoc->GetElementById("btn_quit")) {
+        quit->AddEventListener("click",
+            new UiListener([](Rml::Event&) {
+                KbkLog(kLogChannel, "Quit clicked");
+                SDL_Event quit{};
+                quit.type = SDL_QUIT;
+                SDL_PushEvent(&quit);
+                })
+        );
+    }
+
+    m_mainMenuDoc->Show();
+
+    // --- Editor UI (Hierarchy)
     m_editorDoc = ui.LoadDocument("assets/ui/editor.rml");
     if (!m_editorDoc) {
         KbkError(kLogChannel, "Failed to load assets/ui/editor.rml");
@@ -62,83 +88,44 @@ void UILayer::OnAttach()
 
     m_hierarchyList = m_editorDoc->GetElementById("hierarchy_list");
     if (!m_hierarchyList) {
-        KbkError(kLogChannel, "editor.rml missing element id='hierarchy_list'");
-        CloseEditorDocument();
+        KbkError(kLogChannel, "editor.rml missing id='hierarchy_list'");
         return;
     }
 
+    RebuildHierarchy();
     m_editorDoc->Show();
-    KbkLog(kLogChannel, "Editor UI attached");
+
+    KbkLog(kLogChannel, "UILayer attached (main_menu + editor)");
 }
 
 void UILayer::OnDetach()
 {
-    CloseEditorDocument();
-    m_lastScene = nullptr;
-    m_lastSelected = 0;
-    m_lastHierarchySignature = 0;
-}
-
-void UILayer::OnUpdate(float)
-{
-    Scene2D* scene = m_app.Editor().GetActiveScene();
-
-    // Rebuild when scene becomes available or changes
-    if (scene != m_lastScene) {
-        m_lastScene = scene;
-        RebuildHierarchy();
-        ValidateSelection(scene);
-        m_lastSelected = m_app.Editor().Selected();
-        UpdateSelectionVisuals();
-    }
-    else if (scene) {
-        const std::size_t signature = ComputeHierarchySignature(*scene);
-        if (signature != m_lastHierarchySignature) {
-            m_lastHierarchySignature = signature;
-            RebuildHierarchy();
-            ValidateSelection(scene);
-            UpdateSelectionVisuals();
-        }
+    if (m_mainMenuDoc) {
+        m_mainMenuDoc->Hide();
+        m_mainMenuDoc = nullptr;
     }
 
-    // Update highlight when selection changes
-    const std::uint32_t selected = m_app.Editor().Selected();
-    if (selected != m_lastSelected) {
-        m_lastSelected = selected;
-        UpdateSelectionVisuals();
-    }
-}
-
-void UILayer::OnRender(SpriteBatch2D&)
-{
-}
-
-void UILayer::CloseEditorDocument()
-{
     if (m_editorDoc) {
         m_editorDoc->Hide();
-        m_editorDoc->Close();
         m_editorDoc = nullptr;
     }
 
     m_hierarchyList = nullptr;
+    m_selectedEntityId = 0;
 }
 
-void UILayer::ValidateSelection(Scene2D* scene)
+void UILayer::OnUpdate(float /*dt*/)
 {
-    if (!scene) {
-        m_app.Editor().Select(0);
-        return;
+    // Keep our local selection in sync with the editor context
+    const auto selected = m_app.Editor().Selected();
+    if (selected != m_selectedEntityId) {
+        m_selectedEntityId = selected;
+        ApplySelectionStyle();
     }
+}
 
-    const std::uint32_t selected = m_app.Editor().Selected();
-    if (selected == 0)
-        return;
-
-    const Entity2D* entity = scene->FindEntity(selected);
-    if (!entity || !entity->active) {
-        m_app.Editor().Select(0);
-    }
+void UILayer::OnRender(SpriteBatch2D& /*batch*/)
+{
 }
 
 void UILayer::RebuildHierarchy()
@@ -146,80 +133,63 @@ void UILayer::RebuildHierarchy()
     if (!m_editorDoc || !m_hierarchyList)
         return;
 
-    m_hierarchyList->SetInnerRML("");
-
     Scene2D* scene = m_app.Editor().GetActiveScene();
     if (!scene) {
-        KbkWarn(kLogChannel, "No active scene (hierarchy empty)");
-        m_lastHierarchySignature = 0;
+        m_hierarchyList->SetInnerRML("<div class='hint'>No active scene.</div>");
         return;
     }
 
-    m_lastHierarchySignature = ComputeHierarchySignature(*scene);
+    m_hierarchyList->SetInnerRML("");
 
     for (const Entity2D& e : scene->Entities()) {
         if (!e.active)
             continue;
 
-        const std::string label = MakeEntityLabel(*scene, e);
+        std::string label;
+        if (const auto* n = scene->TryGetName(e.id); n && !n->name.empty())
+            label = n->name;
+        else
+            label = "Entity " + std::to_string(e.id);
 
-        // RmlUI uses ElementPtr (unique_ptr)
-        Rml::ElementPtr item = m_editorDoc->CreateElement("button");
-        Rml::Element* raw = item.get();
+        Rml::Element* item = m_editorDoc->CreateElement("button");
+        item->SetClass("hierarchy_item", true);
+        item->SetInnerRML(label);
 
-        raw->SetClass("hierarchy_item", true);
-        raw->SetAttribute("data-entity-id", static_cast<int>(e.id));
-        raw->SetInnerRML(label);
+        // Store id as attribute to style later
+        item->SetAttribute("data-entity-id", static_cast<int>(e.id));
 
         const std::uint32_t id = e.id;
 
-        raw->AddEventListener("click",
-            new UiListener([this, id](Rml::Event&) {
+        item->AddEventListener("click",
+            new UiListener([this, id, label](Rml::Event&) {
                 m_app.Editor().Select(id);
+                m_selectedEntityId = id;
+                KbkLog(kLogChannel, "Selected: %s (id=%u)", label.c_str(), id);
+                ApplySelectionStyle();
                 })
         );
 
-        // AppendChild takes ownership (ElementPtr)
-        m_hierarchyList->AppendChild(std::move(item));
+        m_hierarchyList->AppendChild(item);
     }
+
+    ApplySelectionStyle();
 }
 
-void UILayer::UpdateSelectionVisuals()
+void UILayer::ApplySelectionStyle()
 {
     if (!m_hierarchyList)
         return;
 
-    const std::uint32_t selected = m_app.Editor().Selected();
-
-    const int count = m_hierarchyList->GetNumChildren();
-    for (int i = 0; i < count; ++i) {
+    const int numChildren = m_hierarchyList->GetNumChildren();
+    for (int i = 0; i < numChildren; ++i) {
         Rml::Element* child = m_hierarchyList->GetChild(i);
         if (!child)
             continue;
 
-        const int idAttr = child->GetAttribute<int>("data-entity-id", 0);
-        const bool isSel = (selected != 0 && static_cast<std::uint32_t>(idAttr) == selected);
-        child->SetClass("selected", isSel);
+        const auto attr = child->GetAttribute("data-entity-id");
+        const int id = attr ? attr->Get<int>() : 0;
+
+        const bool selected = (static_cast<std::uint32_t>(id) == m_selectedEntityId);
+        child->SetClass("selected", selected);
     }
-}
-
-std::size_t UILayer::ComputeHierarchySignature(const Scene2D& scene) const
-{
-    std::size_t signature = 0;
-    std::hash<std::uint32_t> idHash;
-    std::hash<std::string> nameHash;
-
-    for (const Entity2D& e : scene.Entities()) {
-        if (!e.active)
-            continue;
-
-        const std::size_t idPart = idHash(e.id);
-        signature ^= idPart + 0x9e3779b9 + (signature << 6) + (signature >> 2);
-
-        if (const auto* name = scene.TryGetName(e.id)) {
-            signature ^= nameHash(name->name) + 0x9e3779b9 + (signature << 6) + (signature >> 2);
-        }
-    }
-
-    return signature;
 }

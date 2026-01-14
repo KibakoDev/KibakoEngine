@@ -35,7 +35,6 @@
     <ClInclude Include="include\KibakoEngine\UI\RmlSystemInterface.h" />
     <ClInclude Include="include\KibakoEngine\UI\RmlUIContext.h" />
     <ClInclude Include="include\KibakoEngine\Utils\Math.h" />
-    <ClInclude Include="..\third_party\stb_image.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Collision\Collision2D.cpp" />
@@ -46,6 +45,7 @@
     <ClCompile Include="src\Core\Log.cpp" />
     <ClCompile Include="src\Core\Time.cpp" />
     <ClCompile Include="src\Core\Profiler.cpp" />
+    <ClCompile Include="src\Editor\EditorContext.cpp" />
     <ClCompile Include="src\Renderer\Camera2D.cpp" />
     <ClCompile Include="src\Renderer\DebugDraw2D.cpp" />
     <ClCompile Include="src\Renderer\RendererD3D11.cpp" />

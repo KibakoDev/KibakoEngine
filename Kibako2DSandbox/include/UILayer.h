@@ -1,13 +1,12 @@
 #pragma once
 
-#include "KibakoEngine/Core/Layer.h"
-#include <cstddef>
 #include <cstdint>
+
+#include "KibakoEngine/Core/Layer.h"
 
 namespace KibakoEngine {
     class Application;
     class SpriteBatch2D;
-    class Scene2D;
 }
 
 namespace Rml {
@@ -26,19 +25,16 @@ public:
     void OnRender(KibakoEngine::SpriteBatch2D& batch) override;
 
 private:
-    void CloseEditorDocument();
-    void ValidateSelection(KibakoEngine::Scene2D* scene);
     void RebuildHierarchy();
-    void UpdateSelectionVisuals();
-    std::size_t ComputeHierarchySignature(const KibakoEngine::Scene2D& scene) const;
+    void ApplySelectionStyle();
 
 private:
     KibakoEngine::Application& m_app;
 
+    Rml::ElementDocument* m_mainMenuDoc = nullptr;
     Rml::ElementDocument* m_editorDoc = nullptr;
+
     Rml::Element* m_hierarchyList = nullptr;
 
-    KibakoEngine::Scene2D* m_lastScene = nullptr;
-    std::uint32_t m_lastSelected = 0;
-    std::size_t m_lastHierarchySignature = 0;
+    std::uint32_t m_selectedEntityId = 0;
 };

@@ -34,13 +34,12 @@ void GameLayer::OnAttach()
         return;
     }
 
-    // Editor: set active scene (THIS is the link)
+    // Editor: link active scene (Hierarchy/Inspector will read this)
     m_app.Editor().SetActiveScene(&m_scene);
     m_app.Editor().Select(0);
 
-    // IDs defined in JSON
-    m_entityLeft = 1;
-    m_entityRight = 2;
+    // Resolve by NameComponent (Unity-style)
+    ResolveEntityIDsFromNames();
 
     KbkLog(kLogChannel, "Scene loaded (%zu entities)", m_scene.Entities().size());
 }
@@ -53,6 +52,7 @@ void GameLayer::OnDetach()
     m_app.Editor().Select(0);
 
     m_scene.Clear();
+
     m_entityLeft = 0;
     m_entityRight = 0;
 
@@ -89,6 +89,28 @@ void GameLayer::OnRender(SpriteBatch2D& batch)
         RenderCollisionDebug(batch);
 }
 
+void GameLayer::ResolveEntityIDsFromNames()
+{
+    m_entityLeft = 0;
+    m_entityRight = 0;
+
+    if (auto* e = m_scene.FindByName("LeftStar"))
+        m_entityLeft = e->id;
+    else
+        KbkWarn(kLogChannel, "Entity 'LeftStar' not found (name component missing or wrong)");
+
+    if (auto* e = m_scene.FindByName("RightStar"))
+        m_entityRight = e->id;
+    else
+        KbkWarn(kLogChannel, "Entity 'RightStar' not found (name component missing or wrong)");
+
+    // Fallback safety (keeps sandbox running even if names change)
+    if (m_entityLeft == 0)  m_entityLeft = 1;
+    if (m_entityRight == 0) m_entityRight = 2;
+
+    KbkLog(kLogChannel, "Resolved IDs: Left=%u Right=%u", m_entityLeft, m_entityRight);
+}
+
 void GameLayer::UpdateScene(float dt)
 {
     m_time += dt;
@@ -96,16 +118,18 @@ void GameLayer::UpdateScene(float dt)
     Entity2D* left = m_scene.FindEntity(m_entityLeft);
     Entity2D* right = m_scene.FindEntity(m_entityRight);
 
+    // Simple demo motion
     if (left) {
         left->transform.position = { 430.0f, 450.0f };
         left->transform.rotation = m_time * 0.8f;
     }
+
     if (right) {
         right->transform.position = { 530.0f, 450.0f };
         right->transform.rotation = -m_time * 0.2f;
     }
 
-    // Collision is stored in the component store
+    // Collision stored in component store
     bool hit = false;
     if (left && right) {
         auto* cLeft = m_scene.Collisions().TryGet(m_entityLeft);

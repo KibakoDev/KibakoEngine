@@ -68,9 +68,6 @@
     <ClInclude Include="include\KibakoEngine\Utils\Math.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\third_party\stb_image.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\KibakoEngine\UI\RmlSystemInterface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -140,6 +137,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\UI\RmlUIContext.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Editor\EditorContext.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

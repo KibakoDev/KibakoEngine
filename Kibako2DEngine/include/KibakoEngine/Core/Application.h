@@ -52,8 +52,8 @@ namespace KibakoEngine {
         [[nodiscard]] RmlUIContext& UI() { return m_ui; }
         [[nodiscard]] const RmlUIContext& UI() const { return m_ui; }
 
-        [[nodiscard]] EditorContext& Editor() { return m_editor; }
-        [[nodiscard]] const EditorContext& Editor() const { return m_editor; }
+        [[nodiscard]] KibakoEngine::EditorContext& Editor() { return m_editor; }
+        [[nodiscard]] const KibakoEngine::EditorContext& Editor() const { return m_editor; }
 
         void PushLayer(Layer* layer);
         void PopLayer(Layer* layer);
@@ -85,7 +85,7 @@ namespace KibakoEngine {
 
         RmlUIContext m_ui;
 
-        EditorContext m_editor;
+        KibakoEngine::EditorContext m_editor;
 
         std::vector<Layer*> m_layers;
     };

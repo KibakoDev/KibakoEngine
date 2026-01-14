@@ -20,7 +20,12 @@ public:
     void OnUpdate(float dt) override;
     void OnRender(KibakoEngine::SpriteBatch2D& batch) override;
 
+    // Expose the scene for UI/editor wiring (Hierarchy / Inspector)
+    KibakoEngine::Scene2D& Scene() { return m_scene; }
+    const KibakoEngine::Scene2D& Scene() const { return m_scene; }
+
 private:
+    void ResolveEntityIDsFromNames();
     void UpdateScene(float dt);
     void RenderCollisionDebug(KibakoEngine::SpriteBatch2D& batch);
 
