@@ -20,7 +20,6 @@
     <ClInclude Include="include\KibakoEngine\Core\Layer.h" />
     <ClInclude Include="include\KibakoEngine\Core\Log.h" />
     <ClInclude Include="include\KibakoEngine\Core\Time.h" />
-    <ClInclude Include="include\KibakoEngine\Editor\EditorContext.h" />
     <ClInclude Include="include\KibakoEngine\Gameplay\Timers.h" />
     <ClInclude Include="include\KibakoEngine\Renderer\Camera2D.h" />
     <ClInclude Include="include\KibakoEngine\Renderer\DebugDraw2D.h" />
