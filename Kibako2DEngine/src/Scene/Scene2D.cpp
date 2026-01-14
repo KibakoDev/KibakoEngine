@@ -25,7 +25,7 @@ namespace KibakoEngine {
                 [id](const Entity2D& e) { return e.id == id; });
         }
 
-        static std::string ReadAllText(const char* path)
+        std::string ReadAllText(const char* path)
         {
             if (!path || path[0] == '\0')
                 return {};
@@ -39,7 +39,7 @@ namespace KibakoEngine {
             return ss.str();
         }
 
-        static DirectX::XMFLOAT2 ReadVec2(const nlohmann::json& arr, float dx, float dy)
+        DirectX::XMFLOAT2 ReadVec2(const nlohmann::json& arr, float dx, float dy)
         {
             if (!arr.is_array() || arr.size() < 2)
                 return { dx, dy };
@@ -55,7 +55,7 @@ namespace KibakoEngine {
             return { x.get<float>(), y.get<float>() };
         }
 
-        static RectF ReadRectF(const nlohmann::json& arr, const RectF& def)
+        RectF ReadRectF(const nlohmann::json& arr, const RectF& def)
         {
             if (!arr.is_array() || arr.size() < 4)
                 return def;
@@ -71,7 +71,7 @@ namespace KibakoEngine {
                 arr[3].get<float>());
         }
 
-        static Color4 ReadColor4(const nlohmann::json& arr, const Color4& def)
+        Color4 ReadColor4(const nlohmann::json& arr, const Color4& def)
         {
             if (!arr.is_array() || arr.size() < 4)
                 return def;

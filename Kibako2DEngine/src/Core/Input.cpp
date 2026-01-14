@@ -182,7 +182,8 @@ namespace KibakoEngine {
     void Input::UpdateActions()
     {
         // Compute action state from current/previous keyboard snapshots
-        for (auto& [name, st] : m_actions) {
+        for (auto& entry : m_actions) {
+            auto& st = entry.second;
             bool nowDown = false;
             bool prevDown = false;
 

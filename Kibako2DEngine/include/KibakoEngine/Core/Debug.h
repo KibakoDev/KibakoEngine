@@ -1,8 +1,6 @@
 // Helpers for assertions, verification, and diagnostic logging
 #pragma once
 
-#include <cstdint>
-
 #include "KibakoEngine/Core/Log.h"
 
 namespace KibakoEngine::Debug {
@@ -59,4 +57,3 @@ namespace KibakoEngine::Debug {
 #define KBK_HR(expression) \
     ::KibakoEngine::Debug::VerifyHRESULT( \
         static_cast<long>(expression), #expression, __FILE__, __LINE__)
-

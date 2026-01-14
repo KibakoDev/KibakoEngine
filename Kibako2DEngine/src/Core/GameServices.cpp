@@ -1,7 +1,6 @@
 // Maintains global gameplay states
 #include "KibakoEngine/Core/GameServices.h"
 
-#include "KibakoEngine/Core/Debug.h"
 #include "KibakoEngine/Core/Log.h"
 
 namespace KibakoEngine::GameServices {
