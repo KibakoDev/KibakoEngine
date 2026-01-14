@@ -1,4 +1,4 @@
-// Lightweight 2D scene container with component stores (Phase 3A)
+// Lightweight 2D scene container with component stores (Phase 2)
 #pragma once
 
 #include <cstdint>
@@ -25,14 +25,15 @@ namespace KibakoEngine {
         DirectX::XMFLOAT2 scale{ 1.0f, 1.0f };
     };
 
-    // ---- Components ---------------------------------------------------------
-
+    // Component: Sprite renderer (data-driven + runtime cached pointer)
     struct SpriteRenderer2D
     {
+        // Data-driven fields
         std::string textureId;
         std::string texturePath;
         bool        textureSRGB = true;
 
+        // Runtime cache
         Texture2D* texture = nullptr;
 
         RectF  dst{ 0.0f, 0.0f, 0.0f, 0.0f };
@@ -41,22 +42,15 @@ namespace KibakoEngine {
         int    layer = 0;
     };
 
-    struct NameComponent
-    {
-        std::string name;
-    };
-
-    // ---- Entity -------------------------------------------------------------
-
+    // Entity: minimal, stable, solo-dev friendly
     struct Entity2D
     {
         EntityID id = 0;
         bool     active = true;
 
+        // Always-on component
         Transform2D transform;
     };
-
-    // ---- Scene --------------------------------------------------------------
 
     class Scene2D
     {
@@ -72,34 +66,21 @@ namespace KibakoEngine {
         [[nodiscard]] Entity2D* FindEntity(EntityID id);
         [[nodiscard]] const Entity2D* FindEntity(EntityID id) const;
 
-        [[nodiscard]] Entity2D* FindByName(const std::string& name);
-        [[nodiscard]] const Entity2D* FindByName(const std::string& name) const;
-
         std::vector<Entity2D>& Entities() { return m_entities; }
         const std::vector<Entity2D>& Entities() const { return m_entities; }
 
-        // ---- Component stores access ---------------------------------------
+        // Component stores access
+        [[nodiscard]] ComponentStore<SpriteRenderer2D>& Sprites() { return m_sprites; }
+        [[nodiscard]] const ComponentStore<SpriteRenderer2D>& Sprites() const { return m_sprites; }
 
-        ComponentStore<SpriteRenderer2D>& Sprites() { return m_sprites; }
-        ComponentStore<CollisionComponent2D>& Collisions() { return m_collisions; }
-        ComponentStore<NameComponent>& Names() { return m_names; }
+        [[nodiscard]] ComponentStore<CollisionComponent2D>& Collisions() { return m_collisions; }
+        [[nodiscard]] const ComponentStore<CollisionComponent2D>& Collisions() const { return m_collisions; }
 
-        const ComponentStore<SpriteRenderer2D>& Sprites() const { return m_sprites; }
-        const ComponentStore<CollisionComponent2D>& Collisions() const { return m_collisions; }
-        const ComponentStore<NameComponent>& Names() const { return m_names; }
-
-        // ---- Component helpers ---------------------------------------------
-
-        SpriteRenderer2D& AddSprite(EntityID id);
-
-        NameComponent& AddName(EntityID id, const std::string& name = {});
-        NameComponent* TryGetName(EntityID id);
-        const NameComponent* TryGetName(EntityID id) const;
+        // Component helpers
+        [[nodiscard]] SpriteRenderer2D& AddSprite(EntityID id);
 
         CircleCollider2D* AddCircleCollider(EntityID id, float radius, bool active = true);
         AABBCollider2D* AddAABBCollider(EntityID id, float halfW, float halfH, bool active = true);
-
-        // ---- Runtime --------------------------------------------------------
 
         void Update(float dt);
         void Render(SpriteBatch2D& batch) const;
@@ -111,10 +92,11 @@ namespace KibakoEngine {
         EntityID m_nextID = 1;
         std::vector<Entity2D> m_entities;
 
+        // Sparse-set stores (perf-ready)
         ComponentStore<SpriteRenderer2D>     m_sprites;
         ComponentStore<CollisionComponent2D> m_collisions;
-        ComponentStore<NameComponent>        m_names;
 
+        // Scene-owned collider pools (stable pointers)
         std::deque<CircleCollider2D> m_circlePool;
         std::deque<AABBCollider2D>   m_aabbPool;
     };

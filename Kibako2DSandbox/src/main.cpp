@@ -13,7 +13,6 @@
 
 #include "KibakoEngine/Core/Application.h"
 #include "KibakoEngine/Core/Log.h"
-
 #include "GameLayer.h"
 #include "UILayer.h"
 
@@ -28,7 +27,7 @@ int main()
     }
 
     GameLayer gameLayer(app);
-    UILayer uiLayer(app, gameLayer.Scene());
+    UILayer   uiLayer(app);
 
     app.PushLayer(&gameLayer);
     app.PushLayer(&uiLayer);
