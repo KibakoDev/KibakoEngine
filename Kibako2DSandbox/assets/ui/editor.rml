@@ -1,7 +1,7 @@
 <rml>
   <head>
     <title>Kibako Editor</title>
-    <link type="text/rcss" href="main_menu.rcss" />
+    <link type="text/rcss" href="editor.rcss" />
   </head>
 
   <body>

@@ -25,8 +25,8 @@
     <Image Include="assets\star.png" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets\ui\main_menu.rml" />
-    <None Include="assets\ui\main_menu.rcss" />
+    <None Include="assets\ui\editor.rml" />
+    <None Include="assets\ui\editor.rcss" />
     <None Include="assets\scenes\test.scene.json" />
   </ItemGroup>
 </Project>

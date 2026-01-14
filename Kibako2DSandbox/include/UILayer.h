@@ -35,7 +35,7 @@ private:
     KibakoEngine::Application& m_app;
     KibakoEngine::Scene2D& m_scene;
 
-    Rml::ElementDocument* m_mainMenuDoc = nullptr;
+    Rml::ElementDocument* m_editorDoc = nullptr;
     Rml::Element* m_hierarchyList = nullptr;
 
     std::uint32_t m_selectedEntityId = 0;
