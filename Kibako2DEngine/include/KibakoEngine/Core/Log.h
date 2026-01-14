@@ -19,8 +19,12 @@ namespace KibakoEngine {
     struct LogConfig
     {
         LogLevel minimumLevel = LogLevel::Trace;
-        LogLevel debuggerBreakLevel = LogLevel::Error;
+        LogLevel debuggerBreakLevel = LogLevel::Critical;
+#if defined(NDEBUG)
+        bool breakIntoDebugger = false;
+#else
         bool breakIntoDebugger = true;
+#endif
         bool haltRenderingOnBreak = true;
     };
 
@@ -103,4 +107,3 @@ namespace KibakoEngine {
 #define KbkWarnDefault(...)     KbkWarn(KBK_LOG_CHANNEL_DEFAULT, __VA_ARGS__)
 #define KbkErrorDefault(...)    KbkError(KBK_LOG_CHANNEL_DEFAULT, __VA_ARGS__)
 #define KbkCriticalDefault(...) KbkCritical(KBK_LOG_CHANNEL_DEFAULT, __VA_ARGS__)
-
