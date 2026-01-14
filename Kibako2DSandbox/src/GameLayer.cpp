@@ -81,8 +81,6 @@ void GameLayer::OnUpdate(float /*dt*/)
         quit.type = SDL_QUIT;
         SDL_PushEvent(&quit);
     }
-
-    // (optionnel) camera smoothing / UI interactions / etc...
 }
 
 void GameLayer::OnFixedUpdate(float fixedDt)
