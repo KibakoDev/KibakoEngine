@@ -17,7 +17,6 @@
 #include <dxgi.h>
 
 #include <iterator>
-#include <algorithm>
 
 #ifdef _MSC_VER
 #    pragma comment(lib, "d3d11.lib")
