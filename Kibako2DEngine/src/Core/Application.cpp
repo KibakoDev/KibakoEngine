@@ -223,14 +223,11 @@ namespace KibakoEngine {
                     (evt.key.keysym.mod & KMOD_ALT)) {
                     ToggleFullscreen();
                 }
-                if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
-#if _DEBUG
 
+#if KBK_DEBUG_BUILD
+                if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
                     return false;
 #endif
-                break;
-
-            default:
                 break;
             }
 
@@ -241,9 +238,7 @@ namespace KibakoEngine {
                 return false;
         }
 
-        // IMPORTANT: finalize action states AFTER event pumping
         m_input.AfterEvents();
-
         ApplyPendingResize();
         return true;
     }
@@ -273,7 +268,8 @@ namespace KibakoEngine {
 
         KbkLog(kLogChannel, "Resize -> %dx%d", m_width, m_height);
 
-        m_renderer.OnResize(static_cast<std::uint32_t>(m_width),
+        m_renderer.OnResize(
+            static_cast<std::uint32_t>(m_width),
             static_cast<std::uint32_t>(m_height));
 
         m_ui.OnResize(m_width, m_height);
@@ -335,21 +331,15 @@ namespace KibakoEngine {
 
             KBK_PROFILE_FRAME("Frame");
 
-            // Raw dt (seconds) clamped to avoid spikes (alt-tab, breakpoints, etc.)
             double rawDt = m_time.DeltaSeconds();
             if (rawDt < 0.0) rawDt = 0.0;
             if (rawDt > kMaxFrameDt) rawDt = kMaxFrameDt;
 
-            // Global time services (pause/timeScale)
             GameServices::Update(rawDt);
 
-            // Accumulate scaled dt for fixed update
             const double scaledDt = GameServices::GetScaledDeltaTime();
             accumulator += scaledDt;
 
-            // ------------------------------------------------------------
-            // A) Fixed update loop (deterministic simulation)
-            // ------------------------------------------------------------
             int subSteps = 0;
             while (accumulator >= kFixedStep && subSteps < kMaxSubSteps) {
 
@@ -364,14 +354,10 @@ namespace KibakoEngine {
                 ++subSteps;
             }
 
-            // If we hit max substeps, drop the rest to avoid spiral-of-death
             if (subSteps == kMaxSubSteps) {
                 accumulator = 0.0;
             }
 
-            // ------------------------------------------------------------
-            // B) Variable update (camera smoothing, UI logic, etc.)
-            // ------------------------------------------------------------
             const float frameDt = static_cast<float>(scaledDt);
 
             for (Layer* layer : m_layers) {
@@ -379,9 +365,6 @@ namespace KibakoEngine {
                     layer->OnUpdate(frameDt);
             }
 
-            // ------------------------------------------------------------
-            // C) Render
-            // ------------------------------------------------------------
             BeginFrame(clearColor);
 
             SpriteBatch2D& batch = m_renderer.Batch();
@@ -392,7 +375,6 @@ namespace KibakoEngine {
                     layer->OnRender(batch);
             }
 
-            // RmlUI tick + render (submits to batch)
             m_ui.Update(frameDt);
             m_ui.Render();
 
