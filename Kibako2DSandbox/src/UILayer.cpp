@@ -5,6 +5,7 @@
 #include "KibakoEngine/Core/Log.h"
 #include "KibakoEngine/UI/RmlUIContext.h"
 #include "KibakoEngine/Scene/Scene2D.h"
+#include "KibakoEngine/Utils/Math.h"
 
 #include <SDL2/SDL_events.h>
 
@@ -192,7 +193,7 @@ void UILayer::RefreshInspectorFromSelection()
     SetInputValue(m_editorDoc, "ins_name", name);
     SetInputValue(m_editorDoc, "ins_pos_x", std::to_string(t.position.x));
     SetInputValue(m_editorDoc, "ins_pos_y", std::to_string(t.position.y));
-    SetInputValue(m_editorDoc, "ins_rot", std::to_string(t.rotation));
+    SetInputValue(m_editorDoc, "ins_rot", std::to_string(KibakoEngine::Math::ToDegrees(t.rotation)));
     SetInputValue(m_editorDoc, "ins_scale_x", std::to_string(t.scale.x));
     SetInputValue(m_editorDoc, "ins_scale_y", std::to_string(t.scale.y));
 }
@@ -210,13 +211,13 @@ void UILayer::ApplyInspectorToSelection()
 
     const float px = ParseFloat(GetInputValue(m_editorDoc, "ins_pos_x"), e->transform.position.x);
     const float py = ParseFloat(GetInputValue(m_editorDoc, "ins_pos_y"), e->transform.position.y);
-    const float rot = ParseFloat(GetInputValue(m_editorDoc, "ins_rot"), e->transform.rotation);
+    const float rot = ParseFloat(GetInputValue(m_editorDoc, "ins_rot"), KibakoEngine::Math::ToDegrees(e->transform.rotation));
     const float sx = ParseFloat(GetInputValue(m_editorDoc, "ins_scale_x"), e->transform.scale.x);
     const float sy = ParseFloat(GetInputValue(m_editorDoc, "ins_scale_y"), e->transform.scale.y);
 
     // Apply to entity
     e->transform.position = { px, py };
-    e->transform.rotation = rot;
+    e->transform.rotation = KibakoEngine::Math::ToRadians(rot);
     e->transform.scale = { sx, sy };
 
     // Apply name component

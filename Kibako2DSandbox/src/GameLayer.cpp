@@ -101,7 +101,7 @@ void GameLayer::FixedSimStep(float fixedDt)
     Entity2D* left = m_scene.FindEntity(m_entityLeft);
     Entity2D* right = m_scene.FindEntity(m_entityRight);
 
-    // Example deterministic motion (same every run)
+    /*// Example deterministic motion (same every run)
     if (left) {
         left->transform.rotation = m_simTime * 0.8f;
     }
@@ -109,7 +109,7 @@ void GameLayer::FixedSimStep(float fixedDt)
     if (right) {
         right->transform.rotation = -m_simTime * 0.2f;
     }
-
+    */
     const CollisionComponent2D* leftCol = m_scene.Collisions().TryGet(m_entityLeft);
     const CollisionComponent2D* rightCol = m_scene.Collisions().TryGet(m_entityRight);
 
