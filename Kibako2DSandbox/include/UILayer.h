@@ -37,6 +37,9 @@ private:
 
     Rml::ElementDocument* m_editorDoc = nullptr;
     Rml::Element* m_hierarchyList = nullptr;
+    Rml::Element* m_statsEntities = nullptr;
+    Rml::Element* m_statsFps = nullptr;
+
 
     std::uint32_t m_selectedEntityId = 0;
 };

@@ -9,7 +9,13 @@
     <div id="editor_root">
       <!-- Topbar -->
       <div id="editor_topbar">
-        <div id="editor_title">Kibako Editor</div>
+        <div id="editor_left">
+          <div id="editor_title">Kibako Editor</div>
+          <div id="editor_stats">
+            <span id="stats_entities">Entities: 0</span>
+            <span id="stats_fps">FPS: 0</span>
+          </div>
+        </div>
 
         <div id="editor_actions">
           <button id="btn_apply">Apply</button>

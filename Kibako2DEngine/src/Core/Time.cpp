@@ -21,13 +21,32 @@ namespace KibakoEngine {
             m_prevTicks = now;
             m_delta = 0.0;
             m_total = 0.0;
+
+            // FPS init
+            m_fpsSmoothed = 0.0;
+            m_fpsAccumTime = 0.0;
+            m_fpsAccumFrames = 0;
             return;
         }
 
         m_delta = static_cast<double>(now - m_prevTicks) * m_invFrequency;
         m_prevTicks = now;
         m_total += m_delta;
+
+        // FPS smoothing
+        const double dt = (m_delta > 0.0) ? m_delta : 0.0;
+
+        m_fpsAccumTime += dt;
+        m_fpsAccumFrames += 1;
+
+        if (m_fpsAccumTime >= m_fpsUpdateInterval) {
+            m_fpsSmoothed = (m_fpsAccumTime > 0.0)
+                ? (static_cast<double>(m_fpsAccumFrames) / m_fpsAccumTime)
+                : 0.0;
+
+            m_fpsAccumTime = 0.0;
+            m_fpsAccumFrames = 0;
+        }
     }
 
 } // namespace KibakoEngine
-

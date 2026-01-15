@@ -93,9 +93,12 @@ void UILayer::OnAttach()
     }
 
     m_hierarchyList = m_editorDoc->GetElementById("hierarchy_list");
-    if (!m_hierarchyList) {
-        KbkWarn(kLogChannel, "Missing #hierarchy_list element");
-    }
+    m_statsEntities = m_editorDoc->GetElementById("stats_entities");
+    m_statsFps = m_editorDoc->GetElementById("stats_fps");
+
+    if (!m_hierarchyList) KbkWarn(kLogChannel, "Missing #hierarchy_list element");
+    if (!m_statsEntities) KbkWarn(kLogChannel, "Missing #stats_entities element");
+    if (!m_statsFps)      KbkWarn(kLogChannel, "Missing #stats_fps element");
 
     if (auto* quit = m_editorDoc->GetElementById("btn_quit")) {
         quit->AddEventListener("click",
@@ -135,6 +138,31 @@ void UILayer::OnDetach()
 
 void UILayer::OnUpdate(float /*dt*/)
 {
+    if (!m_editorDoc)
+        return;
+
+    // Entities
+    if (m_statsEntities) {
+        const auto& ents = m_scene.Entities();
+
+        int activeCount = 0;
+        for (const auto& e : ents)
+            if (e.active) ++activeCount;
+
+        const std::string txt =
+            "Entities: " + std::to_string(ents.size()) +
+            " (active " + std::to_string(activeCount) + ")";
+
+        m_statsEntities->SetInnerRML(txt.c_str());
+    }
+
+    // FPS
+    if (m_statsFps) {
+        const double fps = m_app.TimeSys().FPS();
+        const int fpsInt = static_cast<int>(fps + 0.5);
+        const std::string txt = "FPS: " + std::to_string(fpsInt);
+        m_statsFps->SetInnerRML(txt.c_str());
+    }
 }
 
 void UILayer::OnRender(SpriteBatch2D& /*batch*/)
