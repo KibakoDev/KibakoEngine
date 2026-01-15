@@ -224,7 +224,10 @@ namespace KibakoEngine {
                     ToggleFullscreen();
                 }
                 if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
+#if _DEBUG
+
                     return false;
+#endif
                 break;
 
             default:

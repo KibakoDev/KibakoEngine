@@ -75,12 +75,6 @@ void GameLayer::OnUpdate(float /*dt*/)
 
     if (input.KeyPressed(SDL_SCANCODE_F1))
         m_showCollisionDebug = !m_showCollisionDebug;
-
-    if (input.KeyPressed(SDL_SCANCODE_ESCAPE)) {
-        SDL_Event quit{};
-        quit.type = SDL_QUIT;
-        SDL_PushEvent(&quit);
-    }
 }
 
 void GameLayer::OnFixedUpdate(float fixedDt)
