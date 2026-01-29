@@ -14,7 +14,6 @@
 #include "KibakoEngine/Core/Application.h"
 #include "KibakoEngine/Core/Log.h"
 #include "GameLayer.h"
-#include "UILayer.h"
 
 using namespace KibakoEngine;
 
@@ -27,10 +26,8 @@ int main()
     }
 
     GameLayer gameLayer(app);
-    UILayer   uiLayer(app, gameLayer.GetScene());
 
     app.PushLayer(&gameLayer);
-    app.PushLayer(&uiLayer);
 
     const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     app.Run(clearColor, true);

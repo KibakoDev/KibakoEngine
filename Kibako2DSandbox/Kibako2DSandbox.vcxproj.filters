@@ -13,13 +13,9 @@
     <ClCompile Include="src\GameLayer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\UILayer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\GameLayer.h" />
-    <ClInclude Include="include\UILayer.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="assets\star.png" />

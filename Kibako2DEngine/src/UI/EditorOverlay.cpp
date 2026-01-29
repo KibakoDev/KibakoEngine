@@ -10,8 +10,6 @@
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Element.h>
 
-#include <string>
-
 namespace KibakoEngine {
 
     namespace {
@@ -20,12 +18,10 @@ namespace KibakoEngine {
 
     void EditorOverlay::Init(Application& app)
     {
-        // Robust against re-init
-        Shutdown();
-
         m_app = &app;
         m_enabled = true;
 
+        // Engine-owned document (assets path we decide next)
         auto& ui = app.UI();
         m_doc = ui.LoadDocument("assets/ui/editor.rml");
         if (!m_doc) {
@@ -57,7 +53,6 @@ namespace KibakoEngine {
 
         m_scene = nullptr;
         m_app = nullptr;
-        m_statsAccum = 0.0f;
     }
 
     void EditorOverlay::SetEnabled(bool enabled)
@@ -67,10 +62,8 @@ namespace KibakoEngine {
         if (!m_doc)
             return;
 
-        if (m_enabled)
-            m_doc->Show();
-        else
-            m_doc->Hide();
+        if (m_enabled) m_doc->Show();
+        else           m_doc->Hide();
     }
 
     void EditorOverlay::Update(float dt)
@@ -88,7 +81,7 @@ namespace KibakoEngine {
 
     void EditorOverlay::RefreshStats()
     {
-        // --- Entities
+        // Entities
         if (m_statsEntities) {
             if (!m_scene) {
                 m_statsEntities->SetInnerRML("Entities: (no scene)");
@@ -98,8 +91,7 @@ namespace KibakoEngine {
 
                 int activeCount = 0;
                 for (const auto& e : ents)
-                    if (e.active)
-                        ++activeCount;
+                    if (e.active) ++activeCount;
 
                 const std::string txt =
                     "Entities: " + std::to_string(ents.size()) +
@@ -109,7 +101,7 @@ namespace KibakoEngine {
             }
         }
 
-        // --- FPS
+        // FPS
         if (m_statsFps) {
             const double fps = m_app->TimeSys().FPS();
             const int fpsInt = static_cast<int>(fps + 0.5);

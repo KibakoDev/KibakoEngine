@@ -13,7 +13,6 @@
   <ItemGroup>
     <ClCompile Include="src\GameLayer.cpp" />
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\UILayer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Kibako2DEngine\Kibako2DEngine.vcxproj">
@@ -22,7 +21,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\GameLayer.h" />
-    <ClInclude Include="include\UILayer.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="assets\star.png" />

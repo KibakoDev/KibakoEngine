@@ -30,6 +30,7 @@
     <ClInclude Include="include\KibakoEngine\Resources\AssetManager.h" />
     <ClInclude Include="include\KibakoEngine\Scene\ComponentStore.h" />
     <ClInclude Include="include\KibakoEngine\Scene\Scene2D.h" />
+    <ClInclude Include="include\KibakoEngine\UI\EditorOverlay.h" />
     <ClInclude Include="include\KibakoEngine\UI\RmlRenderInterfaceD3D11.h" />
     <ClInclude Include="include\KibakoEngine\UI\RmlSystemInterface.h" />
     <ClInclude Include="include\KibakoEngine\UI\RmlUIContext.h" />
@@ -51,6 +52,7 @@
     <ClCompile Include="src\Renderer\Texture2D.cpp" />
     <ClCompile Include="src\Resources\AssetManager.cpp" />
     <ClCompile Include="src\Scene\Scene2D.cpp" />
+    <ClCompile Include="src\UI\EditorOverlay.cpp" />
     <ClCompile Include="src\UI\RmlRenderInterfaceD3D11.cpp" />
     <ClCompile Include="src\UI\RmlSystemInterface.cpp" />
     <ClCompile Include="src\UI\RmlUIContext.cpp" />
