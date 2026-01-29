@@ -4,16 +4,11 @@
 #include <cstdint>
 #include <vector>
 
-#include "KibakoEngine/Core/Debug.h"
 #include "KibakoEngine/Core/Input.h"
 #include "KibakoEngine/Core/Time.h"
 #include "KibakoEngine/Renderer/RendererD3D11.h"
 #include "KibakoEngine/Resources/AssetManager.h"
 #include "KibakoEngine/UI/RmlUIContext.h"
-
-#if KBK_DEBUG_BUILD
-#include "KibakoEngine/UI/EditorOverlay.h"
-#endif
 
 struct SDL_Window;
 struct HWND__;
@@ -22,10 +17,6 @@ using HWND = HWND__*;
 namespace KibakoEngine {
 
     class Layer;
-
-#if KBK_DEBUG_BUILD
-    class Scene2D;
-#endif
 
     class Application
     {
@@ -60,11 +51,6 @@ namespace KibakoEngine {
         [[nodiscard]] RmlUIContext& UI() { return m_ui; }
         [[nodiscard]] const RmlUIContext& UI() const { return m_ui; }
 
-#if KBK_DEBUG_BUILD
-        // Provide the scene currently shown/edited so the engine overlay can display stats.
-        void SetDebugScene(Scene2D* scene) { m_editorUI.SetScene(scene); }
-#endif
-
         void PushLayer(Layer* layer);
         void PopLayer(Layer* layer);
 
@@ -75,7 +61,6 @@ namespace KibakoEngine {
         void ApplyPendingResize();
         void ToggleFullscreen();
 
-    private:
         SDL_Window* m_window = nullptr;
         HWND        m_hwnd = nullptr;
 
@@ -95,10 +80,6 @@ namespace KibakoEngine {
         AssetManager  m_assets;
 
         RmlUIContext m_ui;
-
-#if KBK_DEBUG_BUILD
-        EditorOverlay m_editorUI;
-#endif
 
         std::vector<Layer*> m_layers;
     };

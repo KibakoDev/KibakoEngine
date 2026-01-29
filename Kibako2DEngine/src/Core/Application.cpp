@@ -1,123 +1,416 @@
-#include "KibakoEngine/UI/EditorOverlay.h"
-
-#if KBK_DEBUG_BUILD
-
+// Drives the main application loop, window, and renderer setup
 #include "KibakoEngine/Core/Application.h"
+
+#include "KibakoEngine/Core/Debug.h"
+#include "KibakoEngine/Core/GameServices.h"
+#include "KibakoEngine/Core/Layer.h"
 #include "KibakoEngine/Core/Log.h"
-#include "KibakoEngine/UI/RmlUIContext.h"
-#include "KibakoEngine/Scene/Scene2D.h"
+#include "KibakoEngine/Core/Profiler.h"
 
-#include <RmlUi/Core/ElementDocument.h>
-#include <RmlUi/Core/Element.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_syswm.h>
 
-#include <string>
+#include <algorithm>
 
 namespace KibakoEngine {
 
-    namespace {
-        constexpr const char* kLogChannel = "Kibako.EditorUI";
+    namespace
+    {
+        constexpr const char* kLogChannel = "App";
+
+        // Fixed timestep (simulation)
+        constexpr double kFixedStep = 1.0 / 60.0; // 60 Hz
+        constexpr double kMaxFrameDt = 0.25;      // clamp raw dt (250ms)
+        constexpr int    kMaxSubSteps = 8;        // anti spiral-of-death
+
+        void AnnounceBreakpointStop()
+        {
+            const char* reason = LastBreakpointMessage();
+            KbkWarn(kLogChannel,
+                "Halting main loop due to diagnostics breakpoint%s%s",
+                (reason && reason[0] != '\0') ? ": " : "",
+                (reason && reason[0] != '\0') ? reason : "");
+        }
     }
 
-    void EditorOverlay::Init(Application& app)
+    bool Application::CreateWindowSDL(int width, int height, const char* title)
     {
-        // Robust against re-init
-        Shutdown();
+        KBK_PROFILE_SCOPE("CreateWindow");
 
-        m_app = &app;
-        m_enabled = true;
-
-        auto& ui = app.UI();
-        m_doc = ui.LoadDocument("assets/ui/editor.rml");
-        if (!m_doc) {
-            KbkError(kLogChannel, "Failed to load assets/ui/editor.rml");
-            return;
+        SDL_SetMainReady();
+        if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+            KbkError(kLogChannel, "SDL_Init failed: %s", SDL_GetError());
+            return false;
         }
 
-        m_statsEntities = m_doc->GetElementById("stats_entities");
-        m_statsFps = m_doc->GetElementById("stats_fps");
+        m_window = SDL_CreateWindow(title,
+            SDL_WINDOWPOS_CENTERED,
+            SDL_WINDOWPOS_CENTERED,
+            width,
+            height,
+            SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
 
-        if (!m_statsEntities) KbkWarn(kLogChannel, "Missing #stats_entities element");
-        if (!m_statsFps)      KbkWarn(kLogChannel, "Missing #stats_fps element");
-
-        m_doc->Show();
-        ui.GetContext()->Update();
-
-        KbkLog(kLogChannel, "EditorOverlay initialized");
-    }
-
-    void EditorOverlay::Shutdown()
-    {
-        m_statsEntities = nullptr;
-        m_statsFps = nullptr;
-
-        if (m_doc) {
-            m_doc->Hide();
-            m_doc = nullptr;
+        if (!m_window) {
+            KbkError(kLogChannel, "SDL_CreateWindow failed: %s", SDL_GetError());
+            SDL_Quit();
+            return false;
         }
 
-        m_scene = nullptr;
-        m_app = nullptr;
-        m_statsAccum = 0.0f;
+        SDL_GetWindowSize(m_window, &m_windowedWidth, &m_windowedHeight);
+
+        SDL_SysWMinfo info{};
+        SDL_VERSION(&info.version);
+        if (SDL_GetWindowWMInfo(m_window, &info) == SDL_FALSE) {
+            KbkError(kLogChannel, "SDL_GetWindowWMInfo failed: %s", SDL_GetError());
+            SDL_DestroyWindow(m_window);
+            m_window = nullptr;
+            SDL_Quit();
+            return false;
+        }
+
+        m_hwnd = info.info.win.window;
+        KBK_ASSERT(m_hwnd != nullptr, "SDL window did not provide a valid HWND");
+        return true;
     }
 
-    void EditorOverlay::SetEnabled(bool enabled)
+    void Application::DestroyWindowSDL()
     {
-        m_enabled = enabled;
+        KBK_PROFILE_SCOPE("DestroyWindow");
 
-        if (!m_doc)
-            return;
+        if (m_window) {
+            SDL_DestroyWindow(m_window);
+            m_window = nullptr;
+        }
+        SDL_Quit();
 
-        if (m_enabled)
-            m_doc->Show();
-        else
-            m_doc->Hide();
+        m_hwnd = nullptr;
+        m_hasPendingResize = false;
+        m_fullscreen = false;
+        m_pendingWidth = 0;
+        m_pendingHeight = 0;
+        m_windowedWidth = 0;
+        m_windowedHeight = 0;
     }
 
-    void EditorOverlay::Update(float dt)
+    void Application::HandleResize()
     {
-        if (!m_enabled || !m_doc || !m_app)
+        KBK_PROFILE_SCOPE("HandleResize");
+
+        if (!m_window)
             return;
 
-        m_statsAccum += dt;
-        if (m_statsAccum < m_statsPeriod)
+        int drawableW = 0;
+        int drawableH = 0;
+        SDL_GetWindowSizeInPixels(m_window, &drawableW, &drawableH);
+        if (drawableW <= 0 || drawableH <= 0)
             return;
 
-        m_statsAccum = 0.0f;
-        RefreshStats();
+        m_pendingWidth = drawableW;
+        m_pendingHeight = drawableH;
+        m_hasPendingResize = true;
     }
 
-    void EditorOverlay::RefreshStats()
+    bool Application::Init(int width, int height, const char* title)
     {
-        // --- Entities
-        if (m_statsEntities) {
-            if (!m_scene) {
-                m_statsEntities->SetInnerRML("Entities: (no scene)");
+        KBK_PROFILE_SCOPE("AppInit");
+
+        if (m_running)
+            return true;
+
+        if (!CreateWindowSDL(width, height, title))
+            return false;
+
+        SDL_GetWindowSizeInPixels(m_window, &m_width, &m_height);
+        m_pendingWidth = m_width;
+        m_pendingHeight = m_height;
+        KbkLog(kLogChannel, "Drawable size: %dx%d", m_width, m_height);
+
+        if (!m_renderer.Init(m_hwnd,
+            static_cast<std::uint32_t>(m_width),
+            static_cast<std::uint32_t>(m_height))) {
+            Shutdown();
+            return false;
+        }
+
+        m_assets.Init(m_renderer.GetDevice());
+        KbkLog(kLogChannel, "AssetManager initialized");
+
+        GameServices::Init();
+
+        const bool enableUiDebugger =
+#ifndef NDEBUG
+            true;
+#else
+            false;
+#endif
+
+        if (!m_ui.Init(m_renderer, m_width, m_height, enableUiDebugger)) {
+            KbkError(kLogChannel, "Failed to initialize RmlUI");
+            Shutdown();
+            return false;
+        }
+
+        m_running = true;
+        m_fullscreen = (SDL_GetWindowFlags(m_window) & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0u;
+        return true;
+    }
+
+    void Application::Shutdown()
+    {
+        KBK_PROFILE_SCOPE("AppShutdown");
+
+        if (!m_running)
+            return;
+
+        for (Layer* layer : m_layers) {
+            if (layer)
+                layer->OnDetach();
+        }
+        m_layers.clear();
+
+        m_assets.Shutdown();
+        GameServices::Shutdown();
+        m_ui.Shutdown();
+
+        m_renderer.Shutdown();
+        DestroyWindowSDL();
+
+        Profiler::Flush();
+        m_running = false;
+    }
+
+    bool Application::PumpEvents()
+    {
+        KBK_PROFILE_SCOPE("PumpEvents");
+
+        if (!m_running)
+            return false;
+
+        if (HasBreakpointRequest())
+            return false;
+
+        Profiler::BeginFrame();
+
+        m_input.BeginFrame();
+        m_time.Tick();
+
+        SDL_Event evt{};
+        while (SDL_PollEvent(&evt) != 0) {
+
+            switch (evt.type) {
+            case SDL_QUIT:
+                return false;
+
+            case SDL_WINDOWEVENT:
+                switch (evt.window.event) {
+                case SDL_WINDOWEVENT_SIZE_CHANGED:
+                case SDL_WINDOWEVENT_RESIZED:
+                case SDL_WINDOWEVENT_MAXIMIZED:
+                case SDL_WINDOWEVENT_RESTORED:
+#if defined(SDL_WINDOWEVENT_DISPLAY_SCALE_CHANGED)
+                case SDL_WINDOWEVENT_DISPLAY_SCALE_CHANGED:
+#endif
+                    HandleResize();
+                    break;
+                default:
+                    break;
+                }
+                break;
+
+            case SDL_KEYDOWN:
+                if (!evt.key.repeat &&
+                    (evt.key.keysym.sym == SDLK_RETURN || evt.key.keysym.sym == SDLK_KP_ENTER) &&
+                    (evt.key.keysym.mod & KMOD_ALT)) {
+                    ToggleFullscreen();
+                }
+
+#if KBK_DEBUG_BUILD
+                if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
+                    return false;
+#endif
+                break;
             }
-            else {
-                const auto& ents = m_scene->Entities();
 
-                int activeCount = 0;
-                for (const auto& e : ents)
-                    if (e.active)
-                        ++activeCount;
+            m_input.HandleEvent(evt);
+            m_ui.ProcessSDLEvent(evt);
 
-                const std::string txt =
-                    "Entities: " + std::to_string(ents.size()) +
-                    " (active " + std::to_string(activeCount) + ")";
+            if (HasBreakpointRequest())
+                return false;
+        }
 
-                m_statsEntities->SetInnerRML(txt.c_str());
+        m_input.AfterEvents();
+        ApplyPendingResize();
+        return true;
+    }
+
+    void Application::ApplyPendingResize()
+    {
+        if (!m_hasPendingResize)
+            return;
+
+        m_hasPendingResize = false;
+
+        const int newWidth = m_pendingWidth;
+        const int newHeight = m_pendingHeight;
+
+        if (newWidth <= 0 || newHeight <= 0)
+            return;
+
+        if (newWidth == m_width && newHeight == m_height)
+            return;
+
+        m_width = newWidth;
+        m_height = newHeight;
+
+        if (!m_fullscreen && m_window) {
+            SDL_GetWindowSize(m_window, &m_windowedWidth, &m_windowedHeight);
+        }
+
+        KbkLog(kLogChannel, "Resize -> %dx%d", m_width, m_height);
+
+        m_renderer.OnResize(
+            static_cast<std::uint32_t>(m_width),
+            static_cast<std::uint32_t>(m_height));
+
+        m_ui.OnResize(m_width, m_height);
+    }
+
+    void Application::ToggleFullscreen()
+    {
+        if (!m_window)
+            return;
+
+        if (!m_fullscreen) {
+            SDL_GetWindowSize(m_window, &m_windowedWidth, &m_windowedHeight);
+            if (SDL_SetWindowFullscreen(m_window, SDL_WINDOW_FULLSCREEN_DESKTOP) != 0) {
+                KbkError(kLogChannel, "SDL_SetWindowFullscreen failed: %s", SDL_GetError());
+                return;
+            }
+            m_fullscreen = true;
+        }
+        else {
+            if (SDL_SetWindowFullscreen(m_window, 0) != 0) {
+                KbkError(kLogChannel, "SDL_SetWindowFullscreen failed: %s", SDL_GetError());
+                return;
+            }
+            m_fullscreen = false;
+
+            if (m_windowedWidth > 0 && m_windowedHeight > 0) {
+                SDL_SetWindowSize(m_window, m_windowedWidth, m_windowedHeight);
             }
         }
 
-        // --- FPS
-        if (m_statsFps) {
-            const double fps = m_app->TimeSys().FPS();
-            const int fpsInt = static_cast<int>(fps + 0.5);
-            const std::string txt = "FPS: " + std::to_string(fpsInt);
-            m_statsFps->SetInnerRML(txt.c_str());
+        HandleResize();
+    }
+
+    void Application::BeginFrame(const float clearColor[4])
+    {
+        KBK_PROFILE_SCOPE("BeginFrame");
+        m_renderer.BeginFrame(clearColor);
+    }
+
+    void Application::EndFrame(bool waitForVSync)
+    {
+        KBK_PROFILE_SCOPE("EndFrame");
+        m_renderer.EndFrame(waitForVSync);
+        m_input.EndFrame();
+    }
+
+    void Application::Run(const float clearColor[4], bool waitForVSync)
+    {
+        KBK_ASSERT(m_running, "Run() called before Init()");
+
+        double accumulator = 0.0;
+
+        while (PumpEvents()) {
+
+            if (ConsumeBreakpointRequest()) {
+                AnnounceBreakpointStop();
+                break;
+            }
+
+            KBK_PROFILE_FRAME("Frame");
+
+            double rawDt = m_time.DeltaSeconds();
+            if (rawDt < 0.0) rawDt = 0.0;
+            if (rawDt > kMaxFrameDt) rawDt = kMaxFrameDt;
+
+            GameServices::Update(rawDt);
+
+            const double scaledDt = GameServices::GetScaledDeltaTime();
+            accumulator += scaledDt;
+
+            int subSteps = 0;
+            while (accumulator >= kFixedStep && subSteps < kMaxSubSteps) {
+
+                const float fdt = static_cast<float>(kFixedStep);
+
+                for (Layer* layer : m_layers) {
+                    if (layer)
+                        layer->OnFixedUpdate(fdt);
+                }
+
+                accumulator -= kFixedStep;
+                ++subSteps;
+            }
+
+            if (subSteps == kMaxSubSteps) {
+                accumulator = 0.0;
+            }
+
+            const float frameDt = static_cast<float>(scaledDt);
+
+            for (Layer* layer : m_layers) {
+                if (layer)
+                    layer->OnUpdate(frameDt);
+            }
+
+            BeginFrame(clearColor);
+
+            SpriteBatch2D& batch = m_renderer.Batch();
+            batch.Begin(m_renderer.Camera().GetViewProjectionT());
+
+            for (Layer* layer : m_layers) {
+                if (layer)
+                    layer->OnRender(batch);
+            }
+
+            m_ui.Update(frameDt);
+            m_ui.Render();
+
+            batch.End();
+            EndFrame(waitForVSync);
+
+            if (ConsumeBreakpointRequest()) {
+                AnnounceBreakpointStop();
+                break;
+            }
+        }
+
+        if (ConsumeBreakpointRequest()) {
+            AnnounceBreakpointStop();
+        }
+    }
+
+    void Application::PushLayer(Layer* layer)
+    {
+        if (!layer)
+            return;
+
+        m_layers.push_back(layer);
+        layer->OnAttach();
+    }
+
+    void Application::PopLayer(Layer* layer)
+    {
+        if (!layer)
+            return;
+
+        auto it = std::find(m_layers.begin(), m_layers.end(), layer);
+        if (it != m_layers.end()) {
+            (*it)->OnDetach();
+            m_layers.erase(it);
         }
     }
 
 } // namespace KibakoEngine
-
-#endif // KBK_DEBUG_BUILD
