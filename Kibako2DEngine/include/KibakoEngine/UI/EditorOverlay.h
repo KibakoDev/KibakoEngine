@@ -2,17 +2,19 @@
 
 #include <cstdint>
 
+#include "KibakoEngine/Core/Debug.h"
+
 #if KBK_DEBUG_BUILD
+
+namespace Rml {
+    class ElementDocument;
+    class Element;
+}
 
 namespace KibakoEngine {
 
     class Application;
     class Scene2D;
-
-    namespace Rml {
-        class ElementDocument;
-        class Element;
-    }
 
     // ------------------------------------------------------------
     // Engine Debug Editor Overlay (Debug builds only)
