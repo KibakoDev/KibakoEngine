@@ -43,6 +43,10 @@ namespace KibakoEngine {
             return false;
         }
 
+#if KBK_DEBUG_BUILD
+        m_editorOverlay.Init(*this);
+#endif
+
         m_window = SDL_CreateWindow(title,
             SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,
@@ -167,6 +171,10 @@ namespace KibakoEngine {
                 layer->OnDetach();
         }
         m_layers.clear();
+
+#if KBK_DEBUG_BUILD
+        m_editorOverlay.Shutdown();
+#endif
 
         m_assets.Shutdown();
         GameServices::Shutdown();
@@ -375,6 +383,10 @@ namespace KibakoEngine {
                     layer->OnRender(batch);
             }
 
+#if KBK_DEBUG_BUILD
+            m_editorOverlay.Update(frameDt);
+#endif
+
             m_ui.Update(frameDt);
             m_ui.Render();
 
@@ -391,6 +403,13 @@ namespace KibakoEngine {
             AnnounceBreakpointStop();
         }
     }
+
+#if KBK_DEBUG_BUILD
+    void Application::SetEditorScene(Scene2D* scene)
+    {
+        m_editorOverlay.SetScene(scene);
+    }
+#endif
 
     void Application::PushLayer(Layer* layer)
     {

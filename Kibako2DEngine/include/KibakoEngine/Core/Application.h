@@ -4,11 +4,15 @@
 #include <cstdint>
 #include <vector>
 
+#include "KibakoEngine/Core/Debug.h"
 #include "KibakoEngine/Core/Input.h"
 #include "KibakoEngine/Core/Time.h"
 #include "KibakoEngine/Renderer/RendererD3D11.h"
 #include "KibakoEngine/Resources/AssetManager.h"
 #include "KibakoEngine/UI/RmlUIContext.h"
+#if KBK_DEBUG_BUILD
+#include "KibakoEngine/UI/EditorOverlay.h"
+#endif
 
 struct SDL_Window;
 struct HWND__;
@@ -17,6 +21,7 @@ using HWND = HWND__*;
 namespace KibakoEngine {
 
     class Layer;
+    class Scene2D;
 
     class Application
     {
@@ -51,6 +56,12 @@ namespace KibakoEngine {
         [[nodiscard]] RmlUIContext& UI() { return m_ui; }
         [[nodiscard]] const RmlUIContext& UI() const { return m_ui; }
 
+#if KBK_DEBUG_BUILD
+        void SetEditorScene(Scene2D* scene);
+        [[nodiscard]] EditorOverlay& EditorUI() { return m_editorOverlay; }
+        [[nodiscard]] const EditorOverlay& EditorUI() const { return m_editorOverlay; }
+#endif
+
         void PushLayer(Layer* layer);
         void PopLayer(Layer* layer);
 
@@ -78,6 +89,10 @@ namespace KibakoEngine {
         Time          m_time;
         Input         m_input;
         AssetManager  m_assets;
+
+#if KBK_DEBUG_BUILD
+        EditorOverlay m_editorOverlay;
+#endif
 
         RmlUIContext m_ui;
 

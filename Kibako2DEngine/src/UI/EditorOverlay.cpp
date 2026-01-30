@@ -7,13 +7,35 @@
 #include "KibakoEngine/UI/RmlUIContext.h"
 #include "KibakoEngine/Scene/Scene2D.h"
 
+#include <array>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Element.h>
+#include <filesystem>
+#include <string>
 
 namespace KibakoEngine {
 
     namespace {
         constexpr const char* kLogChannel = "Kibako.EditorUI";
+
+        std::string ResolveEditorRmlPath()
+        {
+            namespace fs = std::filesystem;
+
+            const fs::path cwd = fs::current_path();
+            const std::array<fs::path, 3> candidates = {
+                cwd / "Kibako2DEngine/assets/ui/editor.rml",
+                cwd / "../Kibako2DEngine/assets/ui/editor.rml",
+                cwd / "assets/ui/editor.rml"
+            };
+
+            for (const auto& path : candidates) {
+                if (fs::exists(path))
+                    return path.string();
+            }
+
+            return (cwd / "assets/ui/editor.rml").string();
+        }
     }
 
     void EditorOverlay::Init(Application& app)
@@ -21,11 +43,11 @@ namespace KibakoEngine {
         m_app = &app;
         m_enabled = true;
 
-        // Engine-owned document (assets path we decide next)
         auto& ui = app.UI();
-        m_doc = ui.LoadDocument("assets/ui/editor.rml");
+        const std::string editorPath = ResolveEditorRmlPath();
+        m_doc = ui.LoadDocument(editorPath.c_str());
         if (!m_doc) {
-            KbkError(kLogChannel, "Failed to load assets/ui/editor.rml");
+            KbkError(kLogChannel, "Failed to load editor UI from '%s'", editorPath.c_str());
             return;
         }
 
@@ -36,7 +58,8 @@ namespace KibakoEngine {
         if (!m_statsFps)      KbkWarn(kLogChannel, "Missing #stats_fps element");
 
         m_doc->Show();
-        ui.GetContext()->Update();
+        if (auto* context = ui.GetContext())
+            context->Update();
 
         KbkLog(kLogChannel, "EditorOverlay initialized");
     }
@@ -48,6 +71,7 @@ namespace KibakoEngine {
 
         if (m_doc) {
             m_doc->Hide();
+            m_doc->Close();
             m_doc = nullptr;
         }
 
@@ -93,11 +117,15 @@ namespace KibakoEngine {
                 for (const auto& e : ents)
                     if (e.active) ++activeCount;
 
-                const std::string txt =
-                    "Entities: " + std::to_string(ents.size()) +
-                    " (active " + std::to_string(activeCount) + ")";
+                std::string text;
+                text.reserve(64);
+                text.append("Entities: ");
+                text.append(std::to_string(ents.size()));
+                text.append(" (active ");
+                text.append(std::to_string(activeCount));
+                text.append(")");
 
-                m_statsEntities->SetInnerRML(txt.c_str());
+                m_statsEntities->SetInnerRML(text.c_str());
             }
         }
 
@@ -105,8 +133,11 @@ namespace KibakoEngine {
         if (m_statsFps) {
             const double fps = m_app->TimeSys().FPS();
             const int fpsInt = static_cast<int>(fps + 0.5);
-            const std::string txt = "FPS: " + std::to_string(fpsInt);
-            m_statsFps->SetInnerRML(txt.c_str());
+            std::string text;
+            text.reserve(16);
+            text.append("FPS: ");
+            text.append(std::to_string(fpsInt));
+            m_statsFps->SetInnerRML(text.c_str());
         }
     }
 

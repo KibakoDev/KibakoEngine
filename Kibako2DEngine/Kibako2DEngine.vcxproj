@@ -57,6 +57,10 @@
     <ClCompile Include="src\UI\RmlSystemInterface.cpp" />
     <ClCompile Include="src\UI\RmlUIContext.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\ui\editor.rcss" />
+    <None Include="assets\ui\editor.rml" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>

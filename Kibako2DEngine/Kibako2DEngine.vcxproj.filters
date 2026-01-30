@@ -143,4 +143,8 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\ui\editor.rcss" />
+    <None Include="assets\ui\editor.rml" />
+  </ItemGroup>
 </Project>
