@@ -132,6 +132,7 @@ namespace KibakoEngine {
             SDL_DestroyWindow(m_window);
             m_window = nullptr;
         }
+        SDL_StopTextInput();
         SDL_Quit();
 
         m_hwnd = nullptr;
@@ -202,6 +203,8 @@ namespace KibakoEngine {
 
         if (!CreateWindowSDL(width, height, title))
             return false;
+
+        SDL_StartTextInput();
 
         ResolvePaths();
 

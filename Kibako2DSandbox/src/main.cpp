@@ -12,6 +12,7 @@
 #endif
 
 #include "KibakoEngine/Core/Application.h"
+#include "KibakoEngine/Core/Debug.h"
 #include "KibakoEngine/Core/Log.h"
 #include "GameLayer.h"
 
@@ -28,6 +29,13 @@ int main()
     GameLayer gameLayer(app);
 
     app.PushLayer(&gameLayer);
+
+#if KBK_DEBUG_BUILD
+    app.SetEditorScene(&gameLayer.GetScene());
+    app.EditorUI().SetOnApply([]() {
+        KbkLog("Sandbox", "Editor overlay applied changes.");
+        });
+#endif
 
     const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     app.Run(clearColor, true);
