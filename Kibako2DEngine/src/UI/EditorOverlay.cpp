@@ -25,15 +25,41 @@ namespace KibakoEngine {
         m_enabled = true;
 
         auto& ui = app.UI();
-        std::string editorPath = "assets/ui/editor.rml";
+        const std::filesystem::path relativePath = "assets/ui/editor.rml";
+        std::filesystem::path editorPath = relativePath;
+
         if (!std::filesystem::exists(editorPath)) {
-            const std::string legacyPath = "Kibako2DEngine/assets/ui/editor.rml";
-            if (std::filesystem::exists(legacyPath))
-                editorPath = legacyPath;
+            const std::filesystem::path engineRelativePath =
+                std::filesystem::path("Kibako2DEngine") / relativePath;
+            if (std::filesystem::exists(engineRelativePath))
+                editorPath = engineRelativePath;
         }
-        m_doc = ui.LoadDocument(editorPath.c_str());
+
+        if (!std::filesystem::exists(editorPath)) {
+            std::filesystem::path current = std::filesystem::current_path();
+            while (!current.empty()) {
+                const std::filesystem::path candidate = current / relativePath;
+                if (std::filesystem::exists(candidate)) {
+                    editorPath = candidate;
+                    break;
+                }
+
+                const std::filesystem::path engineCandidate =
+                    current / "Kibako2DEngine" / relativePath;
+                if (std::filesystem::exists(engineCandidate)) {
+                    editorPath = engineCandidate;
+                    break;
+                }
+
+                if (current == current.root_path())
+                    break;
+
+                current = current.parent_path();
+            }
+        }
+        m_doc = ui.LoadDocument(editorPath.string().c_str());
         if (!m_doc) {
-            KbkError(kLogChannel, "Failed to load editor UI from '%s'", editorPath.c_str());
+            KbkError(kLogChannel, "Failed to load editor UI from '%s'", editorPath.string().c_str());
             return;
         }
 
