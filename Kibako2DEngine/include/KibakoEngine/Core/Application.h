@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <vector>
 
 #include "KibakoEngine/Core/Debug.h"
@@ -56,6 +57,9 @@ namespace KibakoEngine {
         [[nodiscard]] RmlUIContext& UI() { return m_ui; }
         [[nodiscard]] const RmlUIContext& UI() const { return m_ui; }
 
+        [[nodiscard]] const std::filesystem::path& ExecutableDir() const { return m_executableDir; }
+        [[nodiscard]] const std::filesystem::path& ContentRoot() const { return m_contentRoot; }
+
 #if KBK_DEBUG_BUILD
         // Provide the current scene to the engine overlay (so it can display stats).
         void SetEditorScene(Scene2D* scene);
@@ -73,6 +77,7 @@ namespace KibakoEngine {
         void HandleResize();
         void ApplyPendingResize();
         void ToggleFullscreen();
+        void ResolvePaths();
 
     private:
         SDL_Window* m_window = nullptr;
@@ -94,6 +99,8 @@ namespace KibakoEngine {
         AssetManager  m_assets;
 
         RmlUIContext m_ui;
+        std::filesystem::path m_executableDir;
+        std::filesystem::path m_contentRoot;
 
 #if KBK_DEBUG_BUILD
         EditorOverlay m_editorOverlay;
