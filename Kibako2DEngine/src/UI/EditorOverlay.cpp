@@ -17,25 +17,6 @@ namespace KibakoEngine {
 
     namespace {
         constexpr const char* kLogChannel = "Kibako.EditorUI";
-
-        std::string ResolveEditorRmlPath()
-        {
-            namespace fs = std::filesystem;
-
-            const fs::path cwd = fs::current_path();
-            const std::array<fs::path, 3> candidates = {
-                cwd / "Kibako2DEngine/assets/ui/editor.rml",
-                cwd / "../Kibako2DEngine/assets/ui/editor.rml",
-                cwd / "assets/ui/editor.rml"
-            };
-
-            for (const auto& path : candidates) {
-                if (fs::exists(path))
-                    return path.string();
-            }
-
-            return (cwd / "assets/ui/editor.rml").string();
-        }
     }
 
     void EditorOverlay::Init(Application& app)
@@ -44,7 +25,7 @@ namespace KibakoEngine {
         m_enabled = true;
 
         auto& ui = app.UI();
-        const std::string editorPath = ResolveEditorRmlPath();
+        const std::string editorPath = "Kibako2DEngine/assets/ui/editor.rml";
         m_doc = ui.LoadDocument(editorPath.c_str());
         if (!m_doc) {
             KbkError(kLogChannel, "Failed to load editor UI from '%s'", editorPath.c_str());
