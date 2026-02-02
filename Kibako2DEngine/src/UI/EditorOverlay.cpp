@@ -25,7 +25,12 @@ namespace KibakoEngine {
         m_enabled = true;
 
         auto& ui = app.UI();
-        const std::string editorPath = "Kibako2DEngine/assets/ui/editor.rml";
+        std::string editorPath = "assets/ui/editor.rml";
+        if (!std::filesystem::exists(editorPath)) {
+            const std::string legacyPath = "Kibako2DEngine/assets/ui/editor.rml";
+            if (std::filesystem::exists(legacyPath))
+                editorPath = legacyPath;
+        }
         m_doc = ui.LoadDocument(editorPath.c_str());
         if (!m_doc) {
             KbkError(kLogChannel, "Failed to load editor UI from '%s'", editorPath.c_str());
