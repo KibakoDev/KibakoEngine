@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <string>
 #include <system_error>
+#include <vector>
 
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Element.h>
@@ -34,10 +35,6 @@ namespace KibakoEngine {
             return ok && !ec;
         }
 
-        // Strategy:
-        // 1) Try "assets/ui/editor.rml" (game-style)
-        // 2) Try "Kibako2DEngine/assets/ui/editor.rml" (engine-style)
-        // 3) Try absolute versions from current_path()
         static bool TryLoad(RmlUIContext& ui, const std::filesystem::path& p, Rml::ElementDocument*& outDoc)
         {
             outDoc = nullptr;
@@ -47,6 +44,32 @@ namespace KibakoEngine {
                 return true;
             }
             return false;
+        }
+
+        static void AppendCandidatesFromRoot(const std::filesystem::path& root,
+            std::vector<std::filesystem::path>& out)
+        {
+            if (root.empty())
+                return;
+
+            out.emplace_back(root / "assets" / "ui" / "editor.rml");
+            out.emplace_back(root / "Kibako2DEngine" / "assets" / "ui" / "editor.rml");
+        }
+
+        static std::vector<std::filesystem::path> BuildCandidates(const Application& app)
+        {
+            std::vector<std::filesystem::path> candidates;
+            candidates.reserve(8);
+
+            AppendCandidatesFromRoot(app.ContentRoot(), candidates);
+            AppendCandidatesFromRoot(app.ExecutableDir(), candidates);
+
+            std::error_code ec;
+            const auto cwd = std::filesystem::current_path(ec);
+            if (!ec)
+                AppendCandidatesFromRoot(cwd, candidates);
+
+            return candidates;
         }
     }
 
@@ -64,24 +87,7 @@ namespace KibakoEngine {
             return;
         }
 
-        // NOTE: these are *relative* to the process working directory (VS "Working Directory").
-        const std::filesystem::path relGame = std::filesystem::path("assets") / "ui" / "editor.rml";
-        const std::filesystem::path relEngine = std::filesystem::path("Kibako2DEngine") / relGame;
-
-        // Helpful log for debugging path issues.
-        std::error_code ec;
-        const auto cwd = std::filesystem::current_path(ec);
-        if (!ec) {
-            KbkLog(kLogChannel, "CWD: %s", cwd.string().c_str());
-        }
-
-        const std::filesystem::path candidates[] = {
-            relGame,
-            relEngine,
-            (!ec ? (cwd / relGame) : relGame),
-            (!ec ? (cwd / relEngine) : relEngine),
-        };
-
+        const auto candidates = BuildCandidates(app);
         Rml::ElementDocument* loaded = nullptr;
         std::string loadedPath;
 
@@ -97,12 +103,16 @@ namespace KibakoEngine {
         }
 
         if (!loaded) {
+            std::string list;
+            list.reserve(512);
+            for (const auto& p : candidates) {
+                list.append(" - ");
+                list.append(ToRmlPathString(p));
+                list.push_back('\n');
+            }
             KbkError(kLogChannel,
-                "Failed to load editor UI. Looked for:\n"
-                " - %s\n"
-                " - %s\n",
-                ToRmlPathString(relGame).c_str(),
-                ToRmlPathString(relEngine).c_str());
+                "Failed to load editor UI. Looked for:\n%s",
+                list.c_str());
             return;
         }
 

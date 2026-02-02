@@ -11,6 +11,7 @@
 #include <SDL2/SDL_syswm.h>
 
 #include <algorithm>
+#include <filesystem>
 
 namespace KibakoEngine {
 
@@ -30,6 +31,46 @@ namespace KibakoEngine {
                 "Halting main loop due to diagnostics breakpoint%s%s",
                 (reason && reason[0] != '\0') ? ": " : "",
                 (reason && reason[0] != '\0') ? reason : "");
+        }
+
+        std::filesystem::path GetExecutableDir()
+        {
+            std::filesystem::path exeDir;
+            char* basePath = SDL_GetBasePath();
+            if (basePath) {
+                exeDir = basePath;
+                SDL_free(basePath);
+            }
+            return exeDir;
+        }
+
+        bool ExistsNoThrow(const std::filesystem::path& p)
+        {
+            std::error_code ec;
+            return std::filesystem::exists(p, ec) && !ec;
+        }
+
+        std::filesystem::path FindContentRoot(const std::filesystem::path& start)
+        {
+            if (start.empty())
+                return {};
+
+            std::filesystem::path cursor = start;
+            for (int i = 0; i < 6; ++i) {
+                const auto engineDoc = cursor / "Kibako2DEngine" / "assets" / "ui" / "editor.rml";
+                if (ExistsNoThrow(engineDoc))
+                    return cursor / "Kibako2DEngine";
+
+                const auto gameDoc = cursor / "assets" / "ui" / "editor.rml";
+                if (ExistsNoThrow(gameDoc))
+                    return cursor;
+
+                if (!cursor.has_parent_path())
+                    break;
+                cursor = cursor.parent_path();
+            }
+
+            return {};
         }
     }
 
@@ -119,6 +160,8 @@ namespace KibakoEngine {
 
         if (!CreateWindowSDL(width, height, title))
             return false;
+
+        ResolvePaths();
 
         SDL_GetWindowSizeInPixels(m_window, &m_width, &m_height);
         m_pendingWidth = m_width;
@@ -313,6 +356,36 @@ namespace KibakoEngine {
         }
 
         HandleResize();
+    }
+
+    void Application::ResolvePaths()
+    {
+        m_executableDir = GetExecutableDir();
+
+        if (m_executableDir.empty()) {
+            std::error_code ec;
+            const auto cwd = std::filesystem::current_path(ec);
+            if (!ec)
+                m_executableDir = cwd;
+        }
+
+        m_contentRoot = FindContentRoot(m_executableDir);
+
+        if (m_contentRoot.empty()) {
+            std::error_code ec;
+            const auto cwd = std::filesystem::current_path(ec);
+            if (!ec)
+                m_contentRoot = FindContentRoot(cwd);
+        }
+
+        if (m_contentRoot.empty()) {
+            m_contentRoot = m_executableDir;
+            KbkWarn(kLogChannel, "Content root not found. Using fallback: %s",
+                m_contentRoot.string().c_str());
+        }
+        else {
+            KbkLog(kLogChannel, "Content root resolved: %s", m_contentRoot.string().c_str());
+        }
     }
 
     void Application::BeginFrame(const float clearColor[4])
