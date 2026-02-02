@@ -20,8 +20,8 @@ namespace KibakoEngine {
 
         // Fixed timestep (simulation)
         constexpr double kFixedStep = 1.0 / 60.0; // 60 Hz
-        constexpr double kMaxFrameDt = 0.25;      // clamp raw dt (250ms)
-        constexpr int    kMaxSubSteps = 8;        // anti spiral-of-death
+        constexpr double kMaxFrameDt = 0.25;       // clamp raw dt (250ms)
+        constexpr int    kMaxSubSteps = 8;          // anti spiral-of-death
 
         void AnnounceBreakpointStop()
         {
@@ -42,10 +42,6 @@ namespace KibakoEngine {
             KbkError(kLogChannel, "SDL_Init failed: %s", SDL_GetError());
             return false;
         }
-
-#if KBK_DEBUG_BUILD
-        m_editorOverlay.Init(*this);
-#endif
 
         m_window = SDL_CreateWindow(title,
             SDL_WINDOWPOS_CENTERED,
@@ -154,6 +150,11 @@ namespace KibakoEngine {
             return false;
         }
 
+#if KBK_DEBUG_BUILD
+        // IMPORTANT: init overlay AFTER RmlUIContext is initialized.
+        m_editorOverlay.Init(*this);
+#endif
+
         m_running = true;
         m_fullscreen = (SDL_GetWindowFlags(m_window) & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0u;
         return true;
@@ -236,6 +237,9 @@ namespace KibakoEngine {
                 if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
                     return false;
 #endif
+                break;
+
+            default:
                 break;
             }
 

@@ -1,3 +1,4 @@
+// KibakoEngine/UI/EditorOverlay.cpp
 #include "KibakoEngine/UI/EditorOverlay.h"
 
 #if KBK_DEBUG_BUILD
@@ -7,61 +8,105 @@
 #include "KibakoEngine/UI/RmlUIContext.h"
 #include "KibakoEngine/Scene/Scene2D.h"
 
-#include <array>
-#include <RmlUi/Core/ElementDocument.h>
-#include <RmlUi/Core/Element.h>
 #include <filesystem>
 #include <string>
+#include <system_error>
+
+#include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/Element.h>
 
 namespace KibakoEngine {
 
     namespace {
         constexpr const char* kLogChannel = "Kibako.EditorUI";
+
+        // RmlUI is generally happier with forward slashes, even on Windows.
+        static std::string ToRmlPathString(const std::filesystem::path& p)
+        {
+            // generic_string() => forward slashes
+            return p.generic_string();
+        }
+
+        static bool ExistsNoThrow(const std::filesystem::path& p)
+        {
+            std::error_code ec;
+            const bool ok = std::filesystem::exists(p, ec);
+            return ok && !ec;
+        }
+
+        // Strategy:
+        // 1) Try "assets/ui/editor.rml" (game-style)
+        // 2) Try "Kibako2DEngine/assets/ui/editor.rml" (engine-style)
+        // 3) Try absolute versions from current_path()
+        static bool TryLoad(RmlUIContext& ui, const std::filesystem::path& p, Rml::ElementDocument*& outDoc)
+        {
+            outDoc = nullptr;
+            const std::string s = ToRmlPathString(p);
+            if (auto* doc = ui.LoadDocument(s.c_str())) {
+                outDoc = doc;
+                return true;
+            }
+            return false;
+        }
     }
 
     void EditorOverlay::Init(Application& app)
     {
         m_app = &app;
         m_enabled = true;
+        m_statsAccum = 0.0f;
 
         auto& ui = app.UI();
-        const std::filesystem::path relativePath = "assets/ui/editor.rml";
-        std::filesystem::path editorPath = relativePath;
 
-        if (!std::filesystem::exists(editorPath)) {
-            const std::filesystem::path engineRelativePath =
-                std::filesystem::path("Kibako2DEngine") / relativePath;
-            if (std::filesystem::exists(engineRelativePath))
-                editorPath = engineRelativePath;
-        }
-
-        if (!std::filesystem::exists(editorPath)) {
-            std::filesystem::path current = std::filesystem::current_path();
-            while (!current.empty()) {
-                const std::filesystem::path candidate = current / relativePath;
-                if (std::filesystem::exists(candidate)) {
-                    editorPath = candidate;
-                    break;
-                }
-
-                const std::filesystem::path engineCandidate =
-                    current / "Kibako2DEngine" / relativePath;
-                if (std::filesystem::exists(engineCandidate)) {
-                    editorPath = engineCandidate;
-                    break;
-                }
-
-                if (current == current.root_path())
-                    break;
-
-                current = current.parent_path();
-            }
-        }
-        m_doc = ui.LoadDocument(editorPath.string().c_str());
-        if (!m_doc) {
-            KbkError(kLogChannel, "Failed to load editor UI from '%s'", editorPath.string().c_str());
+        // Already initialized? Avoid double-load.
+        if (m_doc) {
+            KbkWarn(kLogChannel, "Init called but overlay already has a document loaded.");
             return;
         }
+
+        // NOTE: these are *relative* to the process working directory (VS "Working Directory").
+        const std::filesystem::path relGame = std::filesystem::path("assets") / "ui" / "editor.rml";
+        const std::filesystem::path relEngine = std::filesystem::path("Kibako2DEngine") / relGame;
+
+        // Helpful log for debugging path issues.
+        std::error_code ec;
+        const auto cwd = std::filesystem::current_path(ec);
+        if (!ec) {
+            KbkLog(kLogChannel, "CWD: %s", cwd.string().c_str());
+        }
+
+        const std::filesystem::path candidates[] = {
+            relGame,
+            relEngine,
+            (!ec ? (cwd / relGame) : relGame),
+            (!ec ? (cwd / relEngine) : relEngine),
+        };
+
+        Rml::ElementDocument* loaded = nullptr;
+        std::string loadedPath;
+
+        for (const auto& p : candidates) {
+            // Only attempt if it exists on disk (saves noisy failures)
+            if (!ExistsNoThrow(p))
+                continue;
+
+            if (TryLoad(ui, p, loaded)) {
+                loadedPath = ToRmlPathString(p);
+                break;
+            }
+        }
+
+        if (!loaded) {
+            KbkError(kLogChannel,
+                "Failed to load editor UI. Looked for:\n"
+                " - %s\n"
+                " - %s\n",
+                ToRmlPathString(relGame).c_str(),
+                ToRmlPathString(relEngine).c_str());
+            return;
+        }
+
+        m_doc = loaded;
 
         m_statsEntities = m_doc->GetElementById("stats_entities");
         m_statsFps = m_doc->GetElementById("stats_fps");
@@ -69,11 +114,12 @@ namespace KibakoEngine {
         if (!m_statsEntities) KbkWarn(kLogChannel, "Missing #stats_entities element");
         if (!m_statsFps)      KbkWarn(kLogChannel, "Missing #stats_fps element");
 
+        // Show doc
         m_doc->Show();
         if (auto* context = ui.GetContext())
             context->Update();
 
-        KbkLog(kLogChannel, "EditorOverlay initialized");
+        KbkLog(kLogChannel, "EditorOverlay initialized (loaded '%s')", loadedPath.c_str());
     }
 
     void EditorOverlay::Shutdown()
@@ -83,12 +129,14 @@ namespace KibakoEngine {
 
         if (m_doc) {
             m_doc->Hide();
-            m_doc->Close();
+            m_doc->Close(); // releases the document from the Rml context
             m_doc = nullptr;
         }
 
         m_scene = nullptr;
         m_app = nullptr;
+        m_enabled = false;
+        m_statsAccum = 0.0f;
     }
 
     void EditorOverlay::SetEnabled(bool enabled)
@@ -145,10 +193,12 @@ namespace KibakoEngine {
         if (m_statsFps) {
             const double fps = m_app->TimeSys().FPS();
             const int fpsInt = static_cast<int>(fps + 0.5);
+
             std::string text;
             text.reserve(16);
             text.append("FPS: ");
             text.append(std::to_string(fpsInt));
+
             m_statsFps->SetInnerRML(text.c_str());
         }
     }

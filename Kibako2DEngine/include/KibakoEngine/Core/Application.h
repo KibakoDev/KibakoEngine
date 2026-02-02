@@ -10,6 +10,7 @@
 #include "KibakoEngine/Renderer/RendererD3D11.h"
 #include "KibakoEngine/Resources/AssetManager.h"
 #include "KibakoEngine/UI/RmlUIContext.h"
+
 #if KBK_DEBUG_BUILD
 #include "KibakoEngine/UI/EditorOverlay.h"
 #endif
@@ -49,7 +50,6 @@ namespace KibakoEngine {
         [[nodiscard]] AssetManager& Assets() { return m_assets; }
         [[nodiscard]] const AssetManager& Assets() const { return m_assets; }
 
-        // Native backbuffer dimensions in pixels
         [[nodiscard]] int Width() const { return m_width; }
         [[nodiscard]] int Height() const { return m_height; }
 
@@ -57,6 +57,7 @@ namespace KibakoEngine {
         [[nodiscard]] const RmlUIContext& UI() const { return m_ui; }
 
 #if KBK_DEBUG_BUILD
+        // Provide the current scene to the engine overlay (so it can display stats).
         void SetEditorScene(Scene2D* scene);
         [[nodiscard]] EditorOverlay& EditorUI() { return m_editorOverlay; }
         [[nodiscard]] const EditorOverlay& EditorUI() const { return m_editorOverlay; }
@@ -68,10 +69,12 @@ namespace KibakoEngine {
     private:
         bool CreateWindowSDL(int width, int height, const char* title);
         void DestroyWindowSDL();
+
         void HandleResize();
         void ApplyPendingResize();
         void ToggleFullscreen();
 
+    private:
         SDL_Window* m_window = nullptr;
         HWND        m_hwnd = nullptr;
 
@@ -90,11 +93,11 @@ namespace KibakoEngine {
         Input         m_input;
         AssetManager  m_assets;
 
+        RmlUIContext m_ui;
+
 #if KBK_DEBUG_BUILD
         EditorOverlay m_editorOverlay;
 #endif
-
-        RmlUIContext m_ui;
 
         std::vector<Layer*> m_layers;
     };
