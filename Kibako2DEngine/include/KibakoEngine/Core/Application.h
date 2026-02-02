@@ -1,3 +1,4 @@
+// KibakoEngine/Core/Application.h
 // Central application class that handles windowing, rendering, and layer lifecycle
 #pragma once
 
@@ -51,17 +52,17 @@ namespace KibakoEngine {
         [[nodiscard]] AssetManager& Assets() { return m_assets; }
         [[nodiscard]] const AssetManager& Assets() const { return m_assets; }
 
-        [[nodiscard]] int Width() const { return m_width; }
+        [[nodiscard]] int Width()  const { return m_width; }
         [[nodiscard]] int Height() const { return m_height; }
 
         [[nodiscard]] RmlUIContext& UI() { return m_ui; }
         [[nodiscard]] const RmlUIContext& UI() const { return m_ui; }
 
         [[nodiscard]] const std::filesystem::path& ExecutableDir() const { return m_executableDir; }
-        [[nodiscard]] const std::filesystem::path& ContentRoot() const { return m_contentRoot; }
+        [[nodiscard]] const std::filesystem::path& ContentRoot()   const { return m_contentRoot; }
 
 #if KBK_DEBUG_BUILD
-        // Provide the current scene to the engine overlay (so it can display stats).
+        // Provide the current scene to the engine overlay (stats, hierarchy later, etc.)
         void SetEditorScene(Scene2D* scene);
         [[nodiscard]] EditorOverlay& EditorUI() { return m_editorOverlay; }
         [[nodiscard]] const EditorOverlay& EditorUI() const { return m_editorOverlay; }
@@ -77,6 +78,7 @@ namespace KibakoEngine {
         void HandleResize();
         void ApplyPendingResize();
         void ToggleFullscreen();
+
         void ResolvePaths();
 
     private:
@@ -97,8 +99,8 @@ namespace KibakoEngine {
         Time          m_time;
         Input         m_input;
         AssetManager  m_assets;
+        RmlUIContext  m_ui;
 
-        RmlUIContext m_ui;
         std::filesystem::path m_executableDir;
         std::filesystem::path m_contentRoot;
 

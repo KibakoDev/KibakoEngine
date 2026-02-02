@@ -1,3 +1,4 @@
+// KibakoEngine/Core/Application.cpp
 // Drives the main application loop, window, and renderer setup
 #include "KibakoEngine/Core/Application.h"
 
@@ -12,11 +13,11 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <system_error>
 
 namespace KibakoEngine {
 
-    namespace
-    {
+    namespace {
         constexpr const char* kLogChannel = "App";
 
         // Fixed timestep (simulation)
@@ -33,7 +34,7 @@ namespace KibakoEngine {
                 (reason && reason[0] != '\0') ? reason : "");
         }
 
-        std::filesystem::path GetExecutableDir()
+        std::filesystem::path GetExecutableDirSDL()
         {
             std::filesystem::path exeDir;
             char* basePath = SDL_GetBasePath();
@@ -50,24 +51,33 @@ namespace KibakoEngine {
             return std::filesystem::exists(p, ec) && !ec;
         }
 
+        // Finds a root that contains either:
+        // - <root>/Kibako2DEngine/assets/ui/editor.rml  (engine content)
+        // - <root>/assets/ui/editor.rml                (game content)
         std::filesystem::path FindContentRoot(const std::filesystem::path& start)
         {
             if (start.empty())
                 return {};
 
             std::filesystem::path cursor = start;
-            for (int i = 0; i < 6; ++i) {
-                const auto engineDoc = cursor / "Kibako2DEngine" / "assets" / "ui" / "editor.rml";
-                if (ExistsNoThrow(engineDoc))
+            for (int i = 0; i < 8; ++i) {
+
+                // Engine-first (your current setup)
+                if (ExistsNoThrow(cursor / "Kibako2DEngine" / "assets" / "ui" / "editor.rml"))
                     return cursor / "Kibako2DEngine";
 
-                const auto gameDoc = cursor / "assets" / "ui" / "editor.rml";
-                if (ExistsNoThrow(gameDoc))
+                // Game content
+                if (ExistsNoThrow(cursor / "assets" / "ui" / "editor.rml"))
                     return cursor;
 
                 if (!cursor.has_parent_path())
                     break;
-                cursor = cursor.parent_path();
+
+                const auto parent = cursor.parent_path();
+                if (parent == cursor)
+                    break;
+
+                cursor = parent;
             }
 
             return {};
@@ -149,6 +159,38 @@ namespace KibakoEngine {
         m_pendingWidth = drawableW;
         m_pendingHeight = drawableH;
         m_hasPendingResize = true;
+    }
+
+    void Application::ResolvePaths()
+    {
+        // Executable dir
+        m_executableDir = GetExecutableDirSDL();
+
+        if (m_executableDir.empty()) {
+            std::error_code ec;
+            auto cwd = std::filesystem::current_path(ec);
+            if (!ec)
+                m_executableDir = cwd;
+        }
+
+        // Content root
+        m_contentRoot = FindContentRoot(m_executableDir);
+
+        if (m_contentRoot.empty()) {
+            std::error_code ec;
+            auto cwd = std::filesystem::current_path(ec);
+            if (!ec)
+                m_contentRoot = FindContentRoot(cwd);
+        }
+
+        if (m_contentRoot.empty()) {
+            m_contentRoot = m_executableDir;
+            KbkWarn(kLogChannel, "Content root not found. Using fallback: %s",
+                m_contentRoot.string().c_str());
+        }
+        else {
+            KbkLog(kLogChannel, "Content root resolved: %s", m_contentRoot.string().c_str());
+        }
     }
 
     bool Application::Init(int width, int height, const char* title)
@@ -356,36 +398,6 @@ namespace KibakoEngine {
         }
 
         HandleResize();
-    }
-
-    void Application::ResolvePaths()
-    {
-        m_executableDir = GetExecutableDir();
-
-        if (m_executableDir.empty()) {
-            std::error_code ec;
-            const auto cwd = std::filesystem::current_path(ec);
-            if (!ec)
-                m_executableDir = cwd;
-        }
-
-        m_contentRoot = FindContentRoot(m_executableDir);
-
-        if (m_contentRoot.empty()) {
-            std::error_code ec;
-            const auto cwd = std::filesystem::current_path(ec);
-            if (!ec)
-                m_contentRoot = FindContentRoot(cwd);
-        }
-
-        if (m_contentRoot.empty()) {
-            m_contentRoot = m_executableDir;
-            KbkWarn(kLogChannel, "Content root not found. Using fallback: %s",
-                m_contentRoot.string().c_str());
-        }
-        else {
-            KbkLog(kLogChannel, "Content root resolved: %s", m_contentRoot.string().c_str());
-        }
     }
 
     void Application::BeginFrame(const float clearColor[4])

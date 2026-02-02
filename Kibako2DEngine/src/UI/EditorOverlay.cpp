@@ -8,23 +8,27 @@
 #include "KibakoEngine/UI/RmlUIContext.h"
 #include "KibakoEngine/Scene/Scene2D.h"
 
+#include <SDL2/SDL_events.h>
+
 #include <filesystem>
 #include <string>
 #include <system_error>
 #include <vector>
+#include <functional>
 
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Element.h>
+#include <RmlUi/Core/Event.h>
+#include <RmlUi/Core/EventListener.h>
 
 namespace KibakoEngine {
 
     namespace {
         constexpr const char* kLogChannel = "Kibako.EditorUI";
 
-        // RmlUI is generally happier with forward slashes, even on Windows.
+        // RmlUI prefers forward slashes even on Windows.
         static std::string ToRmlPathString(const std::filesystem::path& p)
         {
-            // generic_string() => forward slashes
             return p.generic_string();
         }
 
@@ -52,14 +56,17 @@ namespace KibakoEngine {
             if (root.empty())
                 return;
 
+            // game-style
             out.emplace_back(root / "assets" / "ui" / "editor.rml");
+
+            // engine-style root containing Kibako2DEngine
             out.emplace_back(root / "Kibako2DEngine" / "assets" / "ui" / "editor.rml");
         }
 
         static std::vector<std::filesystem::path> BuildCandidates(const Application& app)
         {
             std::vector<std::filesystem::path> candidates;
-            candidates.reserve(8);
+            candidates.reserve(12);
 
             AppendCandidatesFromRoot(app.ContentRoot(), candidates);
             AppendCandidatesFromRoot(app.ExecutableDir(), candidates);
@@ -71,6 +78,20 @@ namespace KibakoEngine {
 
             return candidates;
         }
+
+        // Small helper listener (self-deletes on detach)
+        class ButtonListener final : public Rml::EventListener
+        {
+        public:
+            using Callback = std::function<void(Rml::Event&)>;
+            explicit ButtonListener(Callback cb) : m_cb(std::move(cb)) {}
+
+            void ProcessEvent(Rml::Event& e) override { if (m_cb) m_cb(e); }
+            void OnDetach(Rml::Element*) override { delete this; }
+
+        private:
+            Callback m_cb;
+        };
     }
 
     void EditorOverlay::Init(Application& app)
@@ -81,28 +102,27 @@ namespace KibakoEngine {
 
         auto& ui = app.UI();
 
-        // Already initialized? Avoid double-load.
         if (m_doc) {
             KbkWarn(kLogChannel, "Init called but overlay already has a document loaded.");
             return;
         }
 
         const auto candidates = BuildCandidates(app);
-        Rml::ElementDocument* loaded = nullptr;
+
+        Rml::ElementDocument* loadedDoc = nullptr;
         std::string loadedPath;
 
         for (const auto& p : candidates) {
-            // Only attempt if it exists on disk (saves noisy failures)
             if (!ExistsNoThrow(p))
                 continue;
 
-            if (TryLoad(ui, p, loaded)) {
+            if (TryLoad(ui, p, loadedDoc)) {
                 loadedPath = ToRmlPathString(p);
                 break;
             }
         }
 
-        if (!loaded) {
+        if (!loadedDoc) {
             std::string list;
             list.reserve(512);
             for (const auto& p : candidates) {
@@ -110,13 +130,11 @@ namespace KibakoEngine {
                 list.append(ToRmlPathString(p));
                 list.push_back('\n');
             }
-            KbkError(kLogChannel,
-                "Failed to load editor UI. Looked for:\n%s",
-                list.c_str());
+            KbkError(kLogChannel, "Failed to load editor UI. Looked for:\n%s", list.c_str());
             return;
         }
 
-        m_doc = loaded;
+        m_doc = loadedDoc;
 
         m_statsEntities = m_doc->GetElementById("stats_entities");
         m_statsFps = m_doc->GetElementById("stats_fps");
@@ -124,7 +142,8 @@ namespace KibakoEngine {
         if (!m_statsEntities) KbkWarn(kLogChannel, "Missing #stats_entities element");
         if (!m_statsFps)      KbkWarn(kLogChannel, "Missing #stats_fps element");
 
-        // Show doc
+        BindButtons();
+
         m_doc->Show();
         if (auto* context = ui.GetContext())
             context->Update();
@@ -139,12 +158,13 @@ namespace KibakoEngine {
 
         if (m_doc) {
             m_doc->Hide();
-            m_doc->Close(); // releases the document from the Rml context
+            m_doc->Close();
             m_doc = nullptr;
         }
 
         m_scene = nullptr;
         m_app = nullptr;
+        m_onApply = {};
         m_enabled = false;
         m_statsAccum = 0.0f;
     }
@@ -158,6 +178,37 @@ namespace KibakoEngine {
 
         if (m_enabled) m_doc->Show();
         else           m_doc->Hide();
+    }
+
+    void EditorOverlay::BindButtons()
+    {
+        if (!m_doc)
+            return;
+
+        if (auto* quit = m_doc->GetElementById("btn_quit")) {
+            quit->AddEventListener("click",
+                new ButtonListener([](Rml::Event&) {
+                    SDL_Event evt{};
+                    evt.type = SDL_QUIT;
+                    SDL_PushEvent(&evt);
+                    })
+            );
+        }
+        else {
+            KbkWarn(kLogChannel, "Missing #btn_quit element");
+        }
+
+        if (auto* apply = m_doc->GetElementById("btn_apply")) {
+            apply->AddEventListener("click",
+                new ButtonListener([this](Rml::Event&) {
+                    // For now, delegate to user/game hook.
+                    if (m_onApply) m_onApply();
+                    })
+            );
+        }
+        else {
+            KbkWarn(kLogChannel, "Missing #btn_apply element");
+        }
     }
 
     void EditorOverlay::Update(float dt)
@@ -175,7 +226,6 @@ namespace KibakoEngine {
 
     void EditorOverlay::RefreshStats()
     {
-        // Entities
         if (m_statsEntities) {
             if (!m_scene) {
                 m_statsEntities->SetInnerRML("Entities: (no scene)");
@@ -199,7 +249,6 @@ namespace KibakoEngine {
             }
         }
 
-        // FPS
         if (m_statsFps) {
             const double fps = m_app->TimeSys().FPS();
             const int fpsInt = static_cast<int>(fps + 0.5);

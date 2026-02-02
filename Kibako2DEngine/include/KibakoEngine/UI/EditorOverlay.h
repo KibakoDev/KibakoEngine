@@ -1,10 +1,11 @@
+// KibakoEngine/UI/EditorOverlay.h
 #pragma once
-
-#include <cstdint>
 
 #include "KibakoEngine/Core/Debug.h"
 
 #if KBK_DEBUG_BUILD
+
+#include <functional>
 
 namespace Rml {
     class ElementDocument;
@@ -16,9 +17,7 @@ namespace KibakoEngine {
     class Application;
     class Scene2D;
 
-    // ------------------------------------------------------------
     // Engine Debug Editor Overlay (Debug builds only)
-    // ------------------------------------------------------------
     class EditorOverlay
     {
     public:
@@ -30,9 +29,13 @@ namespace KibakoEngine {
         void SetEnabled(bool enabled);
         bool IsEnabled() const { return m_enabled; }
 
+        // Optional hooks for UI buttons
+        void SetOnApply(std::function<void()> fn) { m_onApply = std::move(fn); }
+
         void Update(float dt);
 
     private:
+        void BindButtons();
         void RefreshStats();
 
     private:
@@ -43,32 +46,18 @@ namespace KibakoEngine {
         Rml::Element* m_statsEntities = nullptr;
         Rml::Element* m_statsFps = nullptr;
 
-        float m_statsAccum = 0.0f;   // throttling accumulator
-        float m_statsPeriod = 0.10f;  // update 10x/sec
+        std::function<void()> m_onApply;
+
+        float m_statsAccum = 0.0f;
+        float m_statsPeriod = 0.10f; // 10x/sec
         bool  m_enabled = true;
     };
 
 } // namespace KibakoEngine
 
 #else
-// ------------------------------------------------------------
-// Release build stub (compiled out)
-// ------------------------------------------------------------
-namespace KibakoEngine {
 
-    class Application;
-    class Scene2D;
+// Release build: compiled out
+namespace KibakoEngine { class EditorOverlay {}; }
 
-    class EditorOverlay
-    {
-    public:
-        void Init(Application&) {}
-        void Shutdown() {}
-        void SetScene(Scene2D*) {}
-        void SetEnabled(bool) {}
-        bool IsEnabled() const { return false; }
-        void Update(float) {}
-    };
-
-} // namespace KibakoEngine
 #endif // KBK_DEBUG_BUILD
