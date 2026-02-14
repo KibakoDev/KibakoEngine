@@ -43,8 +43,8 @@ namespace KibakoEngine {
         Rml::Span<const int> indices)
     {
         GeometryBlock block;
-        block.vertices.reserve(vertices.size());
-        block.indices.reserve(indices.size());
+        block.vertices.reserve(std::max(vertices.size(), m_vertexReserveHint));
+        block.indices.reserve(std::max(indices.size(), m_indexReserveHint));
 
         for (const Rml::Vertex& v : vertices) {
             SpriteBatch2D::Vertex out{};
@@ -71,6 +71,8 @@ namespace KibakoEngine {
 
         Rml::CompiledGeometryHandle handle = m_GeometryCounter++;
         m_Geometry[handle] = std::move(block);
+        m_vertexReserveHint = std::max(m_vertexReserveHint, vertices.size());
+        m_indexReserveHint = std::max(m_indexReserveHint, indices.size());
         return handle;
     }
 
@@ -89,23 +91,6 @@ namespace KibakoEngine {
 
         GeometryBlock& geo = it->second;
 
-        const bool needsTranslation =
-            std::fabs(translation.x) > 0.0f || std::fabs(translation.y) > 0.0f;
-
-        const SpriteBatch2D::Vertex* vertices = geo.vertices.data();
-        size_t vertexCount = geo.vertices.size();
-        if (needsTranslation) {
-            m_transformedVertices.resize(geo.vertices.size());
-            for (std::size_t i = 0; i < geo.vertices.size(); ++i) {
-                SpriteBatch2D::Vertex v = geo.vertices[i];
-                v.position.x += translation.x;
-                v.position.y += translation.y;
-                m_transformedVertices[i] = v;
-            }
-            vertices = m_transformedVertices.data();
-            vertexCount = m_transformedVertices.size();
-        }
-
         const Texture2D* texPtr = nullptr;
         auto texIt = m_Textures.find(texture);
         if (texIt != m_Textures.end()) {
@@ -116,21 +101,24 @@ namespace KibakoEngine {
         }
 
         if (m_scissorEnabled) {
-            m_Renderer.Batch().PushGeometryRaw(
+            m_Renderer.Batch().PushGeometryView(
                 texPtr,
-                vertices, vertexCount,
+                geo.vertices.data(), geo.vertices.size(),
                 geo.indices.data(), geo.indices.size(),
                 100000,
-                BuildClipRect(m_scissorRegion)
+                BuildClipRect(m_scissorRegion),
+                { translation.x, translation.y }
             );
             return;
         }
 
-        m_Renderer.Batch().PushGeometryRaw(
+        m_Renderer.Batch().PushGeometryView(
             texPtr,
-            vertices, vertexCount,
+            geo.vertices.data(), geo.vertices.size(),
             geo.indices.data(), geo.indices.size(),
-            100000
+            100000,
+            RectF::FromXYWH(0.0f, 0.0f, 0.0f, 0.0f),
+            { translation.x, translation.y }
         );
     }
 

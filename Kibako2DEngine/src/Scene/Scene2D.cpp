@@ -123,6 +123,8 @@ namespace KibakoEngine {
         m_sprites.Remove(id);
         m_collisions.Remove(id);
         m_names.Remove(id);
+
+        RebuildNameLookup();
     }
 
     void Scene2D::Clear()
@@ -135,6 +137,7 @@ namespace KibakoEngine {
 
         m_circlePool.clear();
         m_aabbPool.clear();
+        m_nameLookup.clear();
 
         m_nextID = 1;
     }
@@ -156,16 +159,12 @@ namespace KibakoEngine {
         if (name.empty())
             return nullptr;
 
-        for (auto& e : m_entities) {
-            if (!e.active)
-                continue;
+        const auto it = m_nameLookup.find(name);
+        if (it == m_nameLookup.end())
+            return nullptr;
 
-            if (NameComponent* n = m_names.TryGet(e.id)) {
-                if (n->name == name)
-                    return &e;
-            }
-        }
-        return nullptr;
+        Entity2D* entity = FindEntity(it->second);
+        return (entity && entity->active) ? entity : nullptr;
     }
 
     const Entity2D* Scene2D::FindByName(const std::string& name) const
@@ -173,16 +172,12 @@ namespace KibakoEngine {
         if (name.empty())
             return nullptr;
 
-        for (const auto& e : m_entities) {
-            if (!e.active)
-                continue;
+        const auto it = m_nameLookup.find(name);
+        if (it == m_nameLookup.end())
+            return nullptr;
 
-            if (const NameComponent* n = m_names.TryGet(e.id)) {
-                if (n->name == name)
-                    return &e;
-            }
-        }
-        return nullptr;
+        const Entity2D* entity = FindEntity(it->second);
+        return (entity && entity->active) ? entity : nullptr;
     }
 
     // ------------------------------------------------------------------------
@@ -196,6 +191,10 @@ namespace KibakoEngine {
     {
         NameComponent& n = m_names.Add(id);
         n.name = name;
+
+        if (!name.empty())
+            m_nameLookup[name] = id;
+
         return n;
     }
 
@@ -241,6 +240,23 @@ namespace KibakoEngine {
     void Scene2D::Update(float dt)
     {
         KBK_UNUSED(dt);
+    }
+
+    void Scene2D::RebuildNameLookup()
+    {
+        m_nameLookup.clear();
+        m_nameLookup.reserve(m_entities.size());
+
+        for (const auto& e : m_entities) {
+            if (!e.active)
+                continue;
+
+            const NameComponent* n = m_names.TryGet(e.id);
+            if (!n || n->name.empty())
+                continue;
+
+            m_nameLookup[n->name] = e.id;
+        }
     }
 
     void Scene2D::Render(SpriteBatch2D& batch) const

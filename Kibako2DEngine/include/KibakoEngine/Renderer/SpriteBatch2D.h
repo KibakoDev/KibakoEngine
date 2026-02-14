@@ -54,6 +54,16 @@ namespace KibakoEngine {
             int layer = 0,
             const RectF& clipRect = RectF::FromXYWH(0.0f, 0.0f, 0.0f, 0.0f));
 
+        // Zero-copy path for long-lived geometry (compiled UI meshes, static overlays)
+        void PushGeometryView(const Texture2D* texture,
+            const Vertex* vertices,
+            size_t vertexCount,
+            const std::uint32_t* indices,
+            size_t indexCount,
+            int layer = 0,
+            const RectF& clipRect = RectF::FromXYWH(0.0f, 0.0f, 0.0f, 0.0f),
+            DirectX::XMFLOAT2 translation = { 0.0f, 0.0f });
+
         void ResetStats() { m_stats = {}; }
         [[nodiscard]] const SpriteBatchStats& Stats() const { return m_stats; }
 
@@ -73,8 +83,14 @@ namespace KibakoEngine {
         // Raw geometry command used by UI / Rml
         struct GeometryCommand {
             const Texture2D* texture = nullptr;
-            std::vector<Vertex>      vertices;
-            std::vector<std::uint32_t> indices;
+            const Vertex*            vertices = nullptr;
+            const std::uint32_t*     indices = nullptr;
+            size_t                   vertexCount = 0;
+            size_t                   indexCount = 0;
+            std::vector<Vertex>      ownedVertices;
+            std::vector<std::uint32_t> ownedIndices;
+            bool hasTranslation = false;
+            DirectX::XMFLOAT2 translation{ 0.0f, 0.0f };
             int layer = 0;
             bool hasClipRect = false;
             RectF clipRect{};
@@ -137,6 +153,8 @@ namespace KibakoEngine {
         // CPU-side buffers used to build the final vertex and index buffers
         std::vector<Vertex>          m_vertexScratch;
         std::vector<std::uint32_t>   m_indexScratch;
+        size_t m_spriteReserveHint = 256;
+        size_t m_geometryReserveHint = 256;
 
         DirectX::XMFLOAT4X4 m_viewProjT{};
         size_t              m_vertexCapacity = 0; // number of vertices allocated

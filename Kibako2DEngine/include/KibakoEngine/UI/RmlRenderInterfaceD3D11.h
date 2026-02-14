@@ -68,7 +68,8 @@ namespace KibakoEngine {
         std::unordered_map<Rml::TextureHandle, Texture2D> m_Textures;
         Rml::TextureHandle m_TextureCounter = 1;
 
-        std::vector<SpriteBatch2D::Vertex> m_transformedVertices;
+        size_t m_vertexReserveHint = 1024;
+        size_t m_indexReserveHint = 1536;
 
         int m_uiWidth = 1; // in pixels (window space)
         int m_uiHeight = 1;
