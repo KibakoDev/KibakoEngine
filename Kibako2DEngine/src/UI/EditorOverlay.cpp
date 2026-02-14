@@ -5,26 +5,20 @@
 
 #include "KibakoEngine/Core/Application.h"
 #include "KibakoEngine/Core/Log.h"
-#include "KibakoEngine/Scene/Scene2D.h"
 #include "KibakoEngine/UI/RmlUIContext.h"
+#include "KibakoEngine/Scene/Scene2D.h"
 
 #include <SDL2/SDL_events.h>
 
-#include <algorithm>
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
 #include <filesystem>
-#include <functional>
+#include <cstdlib>
 #include <string>
-#include <string_view>
 #include <system_error>
 #include <vector>
-#include <cstring>
+#include <functional>
 
-#include <RmlUi/Core/Context.h>
-#include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
 #include <RmlUi/Core/Event.h>
 #include <RmlUi/Core/EventListener.h>
@@ -34,6 +28,7 @@ namespace KibakoEngine {
     namespace {
         constexpr const char* kLogChannel = "Kibako.EditorUI";
 
+        // RmlUI prefers forward slashes even on Windows.
         static std::string ToRmlPathString(const std::filesystem::path& p)
         {
             return p.generic_string();
@@ -63,7 +58,10 @@ namespace KibakoEngine {
             if (root.empty())
                 return;
 
+            // game-style
             out.emplace_back(root / "assets" / "ui" / "editor.rml");
+
+            // engine-style root containing Kibako2DEngine
             out.emplace_back(root / "Kibako2DEngine" / "assets" / "ui" / "editor.rml");
         }
 
@@ -83,28 +81,18 @@ namespace KibakoEngine {
             return candidates;
         }
 
-        class MethodEventListener final : public Rml::EventListener
+        // Small helper listener (self-deletes on detach)
+        class ButtonListener final : public Rml::EventListener
         {
         public:
             using Callback = std::function<void(Rml::Event&)>;
+            explicit ButtonListener(Callback cb) : m_cb(std::move(cb)) {}
 
-            explicit MethodEventListener(Callback callback)
-                : m_callback(std::move(callback)) {
-            }
-
-            void ProcessEvent(Rml::Event& e) override
-            {
-                if (m_callback)
-                    m_callback(e);
-            }
-
-            void OnDetach(Rml::Element*) override
-            {
-                delete this;
-            }
+            void ProcessEvent(Rml::Event& e) override { if (m_cb) m_cb(e); }
+            void OnDetach(Rml::Element*) override { delete this; }
 
         private:
-            Callback m_callback;
+            Callback m_cb;
         };
 
         static Rml::Element* GetElement(Rml::ElementDocument& doc, const char* id)
@@ -123,33 +111,15 @@ namespace KibakoEngine {
             return nullptr;
         }
 
-        static std::string TrimCopy(std::string_view s)
-        {
-            const auto isSpace = [](char c) {
-                return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-            };
-
-            while (!s.empty() && isSpace(s.front()))
-                s.remove_prefix(1);
-            while (!s.empty() && isSpace(s.back()))
-                s.remove_suffix(1);
-
-            return std::string(s);
-        }
-
         static bool ParseFloat(const Rml::String& text, float& out)
         {
-            const std::string trimmed = TrimCopy(text);
-            if (trimmed.empty())
+            if (text.empty())
                 return false;
 
-            const char* begin = trimmed.c_str();
+            const char* begin = text.c_str();
             char* end = nullptr;
             const float value = std::strtof(begin, &end);
             if (end == begin || *end != '\0')
-                return false;
-
-            if (!std::isfinite(value))
                 return false;
 
             out = value;
@@ -161,43 +131,9 @@ namespace KibakoEngine {
             return Rml::String(value.c_str());
         }
 
-        static std::string FormatFloat(float value)
+        static Rml::String ToRmlString(float value)
         {
-            char buf[64]{};
-            std::snprintf(buf, sizeof(buf), "%.4f", static_cast<double>(value));
-
-            std::string text(buf);
-            auto dot = text.find('.');
-            if (dot != std::string::npos) {
-                while (!text.empty() && text.back() == '0')
-                    text.pop_back();
-                if (!text.empty() && text.back() == '.')
-                    text.pop_back();
-            }
-
-            if (text == "-0")
-                return "0";
-
-            return text.empty() ? "0" : text;
-        }
-
-        static Rml::String ToRmlFloatString(float value)
-        {
-            return Rml::String(FormatFloat(value).c_str());
-        }
-
-        static std::uint64_t HashCombine(std::uint64_t seed, std::uint64_t value)
-        {
-            seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-            return seed;
-        }
-
-        static std::uint64_t HashFloat(float value)
-        {
-            static_assert(sizeof(float) == sizeof(std::uint32_t), "Unexpected float size");
-            std::uint32_t bits = 0;
-            std::memcpy(&bits, &value, sizeof(bits));
-            return bits;
+            return Rml::String(std::to_string(value).c_str());
         }
     }
 
@@ -207,12 +143,6 @@ namespace KibakoEngine {
         m_enabled = true;
         m_statsAccum = 0.0f;
         m_refreshAccum = 0.0f;
-
-        m_rebuildHierarchy = true;
-        m_rebuildInspector = true;
-        m_refreshStats = true;
-        m_inspectorEditing = false;
-        m_lastSceneDigest = 0;
 
         auto& ui = app.UI();
 
@@ -250,11 +180,10 @@ namespace KibakoEngine {
 
         m_doc = loadedDoc;
 
-        m_statsEntities = GetElement(*m_doc, "stats_entities");
-        m_statsFps = GetElement(*m_doc, "stats_fps");
-        m_hierarchyList = GetElement(*m_doc, "hierarchy_list");
-        m_inspectorHint = GetElement(*m_doc, "inspector_hint");
-
+        m_statsEntities = m_doc->GetElementById("stats_entities");
+        m_statsFps = m_doc->GetElementById("stats_fps");
+        m_hierarchyList = m_doc->GetElementById("hierarchy_list");
+        m_inspectorHint = m_doc->GetElementById("inspector_hint");
         m_insName = GetInput(*m_doc, "ins_name");
         m_insPosX = GetInput(*m_doc, "ins_pos_x");
         m_insPosY = GetInput(*m_doc, "ins_pos_y");
@@ -275,8 +204,7 @@ namespace KibakoEngine {
 
         BindButtons();
         RefreshHierarchy();
-        RefreshInspector(true);
-        RefreshStats();
+        RefreshInspector();
 
         m_doc->Show();
         if (auto* context = ui.GetContext())
@@ -311,26 +239,14 @@ namespace KibakoEngine {
         m_enabled = false;
         m_statsAccum = 0.0f;
         m_refreshAccum = 0.0f;
-
-        m_rebuildHierarchy = true;
-        m_rebuildInspector = true;
-        m_refreshStats = true;
-        m_inspectorEditing = false;
-        m_lastSceneDigest = 0;
     }
 
     void EditorOverlay::SetScene(Scene2D* scene)
     {
         m_scene = scene;
         m_selectedEntity = 0;
-        m_inspectorEditing = false;
-        m_lastSceneDigest = BuildSceneDigest();
-
-        MarkHierarchyDirty();
-        MarkInspectorDirty();
-        MarkStatsDirty();
-
-        KbkLog(kLogChannel, "SetScene called. scene=%p", static_cast<void*>(scene));
+        RefreshHierarchy();
+        RefreshInspector();
     }
 
     void EditorOverlay::SetEnabled(bool enabled)
@@ -340,15 +256,8 @@ namespace KibakoEngine {
         if (!m_doc)
             return;
 
-        if (m_enabled) {
-            m_doc->Show();
-            MarkHierarchyDirty();
-            MarkInspectorDirty();
-            MarkStatsDirty();
-        }
-        else {
-            m_doc->Hide();
-        }
+        if (m_enabled) m_doc->Show();
+        else           m_doc->Hide();
     }
 
     void EditorOverlay::BindButtons()
@@ -357,34 +266,29 @@ namespace KibakoEngine {
             return;
 
         if (auto* quit = m_doc->GetElementById("btn_quit")) {
-            quit->AddEventListener("click", new MethodEventListener(std::bind(&EditorOverlay::OnQuitClicked, this, std::placeholders::_1)));
+            quit->AddEventListener("click",
+                new ButtonListener([](Rml::Event&) {
+                    SDL_Event evt{};
+                    evt.type = SDL_QUIT;
+                    SDL_PushEvent(&evt);
+                    })
+            );
         }
         else {
             KbkWarn(kLogChannel, "Missing #btn_quit element");
         }
 
         if (auto* apply = m_doc->GetElementById("btn_apply")) {
-            apply->AddEventListener("click", new MethodEventListener(std::bind(&EditorOverlay::OnApplyClicked, this, std::placeholders::_1)));
+            apply->AddEventListener("click",
+                new ButtonListener([this](Rml::Event&) {
+                    ApplyInspector();
+                    if (m_onApply) m_onApply();
+                    })
+            );
         }
         else {
             KbkWarn(kLogChannel, "Missing #btn_apply element");
         }
-
-        auto bindInspectorInput = [this](Rml::ElementFormControlInput* input) {
-            if (!input)
-                return;
-            input->AddEventListener("focus", new MethodEventListener(std::bind(&EditorOverlay::OnInspectorFocus, this, std::placeholders::_1)));
-            input->AddEventListener("blur", new MethodEventListener(std::bind(&EditorOverlay::OnInspectorBlur, this, std::placeholders::_1)));
-            input->AddEventListener("change", new MethodEventListener(std::bind(&EditorOverlay::OnInspectorInputChanged, this, std::placeholders::_1)));
-            input->AddEventListener("input", new MethodEventListener(std::bind(&EditorOverlay::OnInspectorInputChanged, this, std::placeholders::_1)));
-        };
-
-        bindInspectorInput(m_insName);
-        bindInspectorInput(m_insPosX);
-        bindInspectorInput(m_insPosY);
-        bindInspectorInput(m_insRot);
-        bindInspectorInput(m_insScaleX);
-        bindInspectorInput(m_insScaleY);
     }
 
     void EditorOverlay::SelectEntity(EntityID id)
@@ -393,101 +297,7 @@ namespace KibakoEngine {
             return;
 
         m_selectedEntity = id;
-        m_inspectorEditing = false;
-
-        KbkLog(kLogChannel, "Selected entity id=%u", static_cast<unsigned>(m_selectedEntity));
-
-        MarkHierarchyDirty();
-        MarkInspectorDirty();
-    }
-
-    void EditorOverlay::OnQuitClicked(Rml::Event&)
-    {
-        KbkLog(kLogChannel, "Rml event: click #btn_quit");
-        SDL_Event evt{};
-        evt.type = SDL_QUIT;
-        SDL_PushEvent(&evt);
-    }
-
-    void EditorOverlay::OnApplyClicked(Rml::Event&)
-    {
-        KbkLog(kLogChannel, "Rml event: click #btn_apply");
-        ApplyInspector();
-        if (m_onApply)
-            m_onApply();
-    }
-
-    void EditorOverlay::OnHierarchyEntityClicked(EntityID id, Rml::Event&)
-    {
-        KbkLog(kLogChannel, "Rml event: click hierarchy entity id=%u", static_cast<unsigned>(id));
-        SelectEntity(id);
-    }
-
-    void EditorOverlay::OnInspectorFocus(Rml::Event& evt)
-    {
-        m_inspectorEditing = true;
-        if (auto* target = evt.GetTargetElement()) {
-            KbkLog(kLogChannel, "Rml event: focus #%s", target->GetId().c_str());
-        }
-    }
-
-    void EditorOverlay::OnInspectorBlur(Rml::Event& evt)
-    {
-        m_inspectorEditing = false;
-        if (auto* target = evt.GetTargetElement()) {
-            KbkLog(kLogChannel, "Rml event: blur #%s", target->GetId().c_str());
-        }
-        MarkInspectorDirty();
-    }
-
-    void EditorOverlay::OnInspectorInputChanged(Rml::Event& evt)
-    {
-        m_inspectorEditing = true;
-        if (auto* target = evt.GetTargetElement()) {
-            KbkLog(kLogChannel, "Rml event: %s #%s", evt.GetType().c_str(), target->GetId().c_str());
-        }
-    }
-
-    void EditorOverlay::MarkHierarchyDirty()
-    {
-        m_rebuildHierarchy = true;
-    }
-
-    void EditorOverlay::MarkInspectorDirty()
-    {
-        m_rebuildInspector = true;
-    }
-
-    void EditorOverlay::MarkStatsDirty()
-    {
-        m_refreshStats = true;
-    }
-
-    std::uint64_t EditorOverlay::BuildSceneDigest() const
-    {
-        if (!m_scene)
-            return 0;
-
-        std::uint64_t hash = 1469598103934665603ULL;
-
-        for (const auto& e : m_scene->Entities()) {
-            hash = HashCombine(hash, static_cast<std::uint64_t>(e.id));
-            hash = HashCombine(hash, e.active ? 1ULL : 0ULL);
-            hash = HashCombine(hash, HashFloat(e.transform.position.x));
-            hash = HashCombine(hash, HashFloat(e.transform.position.y));
-            hash = HashCombine(hash, HashFloat(e.transform.rotation));
-            hash = HashCombine(hash, HashFloat(e.transform.scale.x));
-            hash = HashCombine(hash, HashFloat(e.transform.scale.y));
-
-            const NameComponent* name = m_scene->TryGetName(e.id);
-            if (name) {
-                for (char c : name->name) {
-                    hash = HashCombine(hash, static_cast<std::uint64_t>(static_cast<unsigned char>(c)));
-                }
-            }
-        }
-
-        return hash;
+        RefreshInspector();
     }
 
     void EditorOverlay::Update(float dt)
@@ -497,38 +307,15 @@ namespace KibakoEngine {
 
         m_statsAccum += dt;
         m_refreshAccum += dt;
-
         if (m_statsAccum >= m_statsPeriod) {
             m_statsAccum = 0.0f;
-            MarkStatsDirty();
+            RefreshStats();
         }
 
         if (m_refreshAccum >= m_refreshPeriod) {
             m_refreshAccum = 0.0f;
-
-            const std::uint64_t digest = BuildSceneDigest();
-            if (digest != m_lastSceneDigest) {
-                m_lastSceneDigest = digest;
-                MarkHierarchyDirty();
-                MarkStatsDirty();
-                if (!m_inspectorEditing)
-                    MarkInspectorDirty();
-            }
-        }
-
-        if (m_refreshStats) {
-            RefreshStats();
-            m_refreshStats = false;
-        }
-
-        if (m_rebuildHierarchy) {
             RefreshHierarchy();
-            m_rebuildHierarchy = false;
-        }
-
-        if (m_rebuildInspector) {
-            RefreshInspector(false);
-            m_rebuildInspector = false;
+            RefreshInspector();
         }
     }
 
@@ -572,13 +359,13 @@ namespace KibakoEngine {
 
     void EditorOverlay::RefreshHierarchy()
     {
-        if (!m_hierarchyList || !m_doc)
+        if (!m_hierarchyList)
             return;
 
         m_hierarchyList->SetInnerRML("");
 
         if (!m_scene) {
-            auto hint = m_doc->CreateElement("div");
+            auto hint = m_doc ? m_doc->CreateElement("div") : Rml::ElementPtr{};
             if (hint) {
                 hint->SetClass("hint", true);
                 hint->SetInnerRML("No scene loaded.");
@@ -588,13 +375,10 @@ namespace KibakoEngine {
         }
 
         bool selectionStillValid = false;
-        int activeCount = 0;
 
         for (const auto& entity : m_scene->Entities()) {
             if (!entity.active)
                 continue;
-
-            ++activeCount;
 
             auto button = m_doc->CreateElement("button");
             if (!button)
@@ -612,7 +396,12 @@ namespace KibakoEngine {
             button->SetInnerRML(ToRmlString(label));
 
             const EntityID id = entity.id;
-            button->AddEventListener("click", new MethodEventListener(std::bind(&EditorOverlay::OnHierarchyEntityClicked, this, id, std::placeholders::_1)));
+            button->AddEventListener("click",
+                new ButtonListener([this, id](Rml::Event&) {
+                    SelectEntity(id);
+                    RefreshHierarchy();
+                    })
+            );
 
             if (id == m_selectedEntity) {
                 button->SetClass("selected", true);
@@ -624,19 +413,13 @@ namespace KibakoEngine {
 
         if (!selectionStillValid && m_selectedEntity != 0) {
             m_selectedEntity = 0;
-            m_inspectorEditing = false;
-            MarkInspectorDirty();
+            RefreshInspector();
         }
-
-        KbkLog(kLogChannel, "Hierarchy rebuild: active entities=%d selected=%u", activeCount, static_cast<unsigned>(m_selectedEntity));
     }
 
-    void EditorOverlay::RefreshInspector(bool force)
+    void EditorOverlay::RefreshInspector()
     {
         if (!m_inspectorHint)
-            return;
-
-        if (!force && m_inspectorEditing)
             return;
 
         if (!m_scene) {
@@ -676,15 +459,15 @@ namespace KibakoEngine {
         if (m_insName)
             m_insName->SetValue(ToRmlString(name ? name->name : ""));
         if (m_insPosX)
-            m_insPosX->SetValue(ToRmlFloatString(entity->transform.position.x));
+            m_insPosX->SetValue(ToRmlString(entity->transform.position.x));
         if (m_insPosY)
-            m_insPosY->SetValue(ToRmlFloatString(entity->transform.position.y));
+            m_insPosY->SetValue(ToRmlString(entity->transform.position.y));
         if (m_insRot)
-            m_insRot->SetValue(ToRmlFloatString(entity->transform.rotation));
+            m_insRot->SetValue(ToRmlString(entity->transform.rotation));
         if (m_insScaleX)
-            m_insScaleX->SetValue(ToRmlFloatString(entity->transform.scale.x));
+            m_insScaleX->SetValue(ToRmlString(entity->transform.scale.x));
         if (m_insScaleY)
-            m_insScaleY->SetValue(ToRmlFloatString(entity->transform.scale.y));
+            m_insScaleY->SetValue(ToRmlString(entity->transform.scale.y));
     }
 
     void EditorOverlay::ApplyInspector()
@@ -696,53 +479,30 @@ namespace KibakoEngine {
         if (!entity || !entity->active)
             return;
 
-        const auto before = entity->transform;
-
         if (m_insName) {
-            const auto nameValue = TrimCopy(m_insName->GetValue());
+            const auto& nameValue = m_insName->GetValue();
             if (auto* name = m_scene->TryGetName(entity->id)) {
-                name->name = nameValue;
+                name->name = nameValue.c_str();
             }
             else if (!nameValue.empty()) {
-                m_scene->AddName(entity->id, nameValue);
+                m_scene->AddName(entity->id, nameValue.c_str());
             }
         }
 
-        float parsed = 0.0f;
-        if (m_insPosX && ParseFloat(m_insPosX->GetValue(), parsed))
-            entity->transform.position.x = parsed;
-        if (m_insPosY && ParseFloat(m_insPosY->GetValue(), parsed))
-            entity->transform.position.y = parsed;
-        if (m_insRot && ParseFloat(m_insRot->GetValue(), parsed))
-            entity->transform.rotation = parsed;
-        if (m_insScaleX && ParseFloat(m_insScaleX->GetValue(), parsed))
-            entity->transform.scale.x = parsed;
-        if (m_insScaleY && ParseFloat(m_insScaleY->GetValue(), parsed))
-            entity->transform.scale.y = parsed;
+        float value = 0.0f;
+        if (m_insPosX && ParseFloat(m_insPosX->GetValue(), value))
+            entity->transform.position.x = value;
+        if (m_insPosY && ParseFloat(m_insPosY->GetValue(), value))
+            entity->transform.position.y = value;
+        if (m_insRot && ParseFloat(m_insRot->GetValue(), value))
+            entity->transform.rotation = value;
+        if (m_insScaleX && ParseFloat(m_insScaleX->GetValue(), value))
+            entity->transform.scale.x = value;
+        if (m_insScaleY && ParseFloat(m_insScaleY->GetValue(), value))
+            entity->transform.scale.y = value;
 
-        KbkLog(
-            kLogChannel,
-            "Apply entity=%u before(pos=%.4f,%.4f rot=%.4f scale=%.4f,%.4f) after(pos=%.4f,%.4f rot=%.4f scale=%.4f,%.4f)",
-            static_cast<unsigned>(entity->id),
-            before.position.x,
-            before.position.y,
-            before.rotation,
-            before.scale.x,
-            before.scale.y,
-            entity->transform.position.x,
-            entity->transform.position.y,
-            entity->transform.rotation,
-            entity->transform.scale.x,
-            entity->transform.scale.y);
-
-        m_inspectorEditing = false;
-        m_lastSceneDigest = BuildSceneDigest();
-
-        MarkHierarchyDirty();
-        MarkInspectorDirty();
-        MarkStatsDirty();
-
-        RefreshInspector(true);
+        RefreshHierarchy();
+        RefreshInspector();
     }
 
 } // namespace KibakoEngine
