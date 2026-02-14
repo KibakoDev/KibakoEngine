@@ -74,7 +74,7 @@ namespace KibakoEngine {
         int m_uiHeight = 1;
 
         bool m_scissorEnabled = false;
-        Rml::Rectanglei m_scissorRegion{ 0, 0, 0, 0 };
+        Rml::Rectanglei m_scissorRegion{};
     };
 
 } // namespace KibakoEngine
