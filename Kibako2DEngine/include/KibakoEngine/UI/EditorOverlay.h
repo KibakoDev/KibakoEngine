@@ -7,6 +7,7 @@
 #if KBK_DEBUG_BUILD
 
 #include <functional>
+#include <cstdint>
 #include <string>
 
 namespace Rml {
@@ -48,6 +49,7 @@ namespace KibakoEngine {
         void ApplyInspectorLive();
         bool HasFocusedInspectorField() const;
         void SetInspectorDefaultValues();
+        std::uint64_t ComputeHierarchySignature() const;
 
     private:
         Application* m_app = nullptr;
@@ -76,6 +78,8 @@ namespace KibakoEngine {
         bool  m_enabled = true;
         bool  m_isApplyingInspector = false;
         bool  m_inspectorDirty = false;
+        bool  m_hierarchyDirty = true;
+        std::uint64_t m_lastHierarchySignature = 0;
 
         std::string m_lastInsName;
         std::string m_lastInsPosX;

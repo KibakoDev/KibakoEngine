@@ -11,6 +11,8 @@
 #include <SDL2/SDL_events.h>
 
 #include <filesystem>
+#include <cerrno>
+#include <cmath>
 #include <cstdlib>
 #include <string>
 #include <system_error>
@@ -122,14 +124,21 @@ namespace KibakoEngine {
 
             const char* begin = text.c_str();
             char* end = nullptr;
+            errno = 0;
             const float value = std::strtof(begin, &end);
             if (end == begin)
+                return false;
+
+            if (errno == ERANGE)
                 return false;
 
             // ignore trailing spaces/tabs
             while (*end == ' ' || *end == '\t')
                 ++end;
             if (*end != '\0')
+                return false;
+
+            if (!std::isfinite(value))
                 return false;
 
             out = value;
@@ -159,6 +168,8 @@ namespace KibakoEngine {
         m_selectedEntity = 0;
         m_isApplyingInspector = false;
         m_inspectorDirty = false;
+        m_hierarchyDirty = true;
+        m_lastHierarchySignature = 0;
 
         auto& ui = app.UI();
 
@@ -245,6 +256,8 @@ namespace KibakoEngine {
         m_selectedEntity = 0;
         m_isApplyingInspector = false;
         m_inspectorDirty = false;
+        m_hierarchyDirty = true;
+        m_lastHierarchySignature = 0;
         m_lastInsName.clear();
         m_lastInsPosX.clear();
         m_lastInsPosY.clear();
@@ -271,6 +284,8 @@ namespace KibakoEngine {
         m_scene = scene;
         m_selectedEntity = 0;
         m_inspectorDirty = false;
+        m_hierarchyDirty = true;
+        m_lastHierarchySignature = 0;
         RefreshHierarchy();
         RefreshInspector();
     }
@@ -357,6 +372,7 @@ namespace KibakoEngine {
 
         m_selectedEntity = id;
         m_inspectorDirty = false;
+        m_hierarchyDirty = true;
         RefreshInspector();
     }
 
@@ -377,7 +393,13 @@ namespace KibakoEngine {
 
         if (m_refreshAccum >= m_refreshPeriod) {
             m_refreshAccum = 0.0f;
-            RefreshHierarchy();
+
+            if (ComputeHierarchySignature() != m_lastHierarchySignature)
+                m_hierarchyDirty = true;
+
+            if (m_hierarchyDirty)
+                RefreshHierarchy();
+
             if (!HasFocusedInspectorField())
                 RefreshInspector();
         }
@@ -466,7 +488,6 @@ namespace KibakoEngine {
             button->AddEventListener("click",
                 new ButtonListener([this, id](Rml::Event&) {
                     SelectEntity(id);
-                    RefreshHierarchy();
                     })
             );
 
@@ -482,6 +503,9 @@ namespace KibakoEngine {
             m_selectedEntity = 0;
             RefreshInspector();
         }
+
+        m_hierarchyDirty = false;
+        m_lastHierarchySignature = ComputeHierarchySignature();
     }
 
     bool EditorOverlay::HasFocusedInspectorField() const
@@ -575,6 +599,39 @@ namespace KibakoEngine {
         maybeSet(m_insScaleY, scaleYText, m_lastInsScaleY);
     }
 
+
+    std::uint64_t EditorOverlay::ComputeHierarchySignature() const
+    {
+        if (!m_scene)
+            return 0;
+
+        std::uint64_t signature = 1469598103934665603ull; // FNV-1a
+        auto hash = [&signature](std::uint64_t value) {
+            signature ^= value;
+            signature *= 1099511628211ull;
+        };
+
+        const auto& entities = m_scene->Entities();
+        hash(static_cast<std::uint64_t>(entities.size()));
+
+        for (const auto& entity : entities) {
+            hash(static_cast<std::uint64_t>(entity.id));
+            hash(entity.active ? 1ull : 0ull);
+
+            const auto* name = m_scene->TryGetName(entity.id);
+            if (!name) {
+                hash(0ull);
+                continue;
+            }
+
+            for (unsigned char c : name->name)
+                hash(static_cast<std::uint64_t>(c));
+            hash(0xffull);
+        }
+
+        return signature;
+    }
+
     void EditorOverlay::ApplyInspectorLive()
     {
         if (!m_inspectorDirty)
@@ -597,10 +654,14 @@ namespace KibakoEngine {
         if (m_insName) {
             const auto& nameValue = m_insName->GetValue();
             if (auto* name = m_scene->TryGetName(entity->id)) {
-                name->name = nameValue.c_str();
+                if (name->name != nameValue.c_str()) {
+                    name->name = nameValue.c_str();
+                    m_hierarchyDirty = true;
+                }
             }
             else if (!nameValue.empty()) {
                 m_scene->AddName(entity->id, nameValue.c_str());
+                m_hierarchyDirty = true;
             }
             m_lastInsName = nameValue.c_str();
         }
@@ -628,7 +689,8 @@ namespace KibakoEngine {
         }
 
         m_inspectorDirty = false;
-        RefreshHierarchy();
+        if (m_hierarchyDirty)
+            RefreshHierarchy();
         RefreshInspector();
 
         m_isApplyingInspector = false;

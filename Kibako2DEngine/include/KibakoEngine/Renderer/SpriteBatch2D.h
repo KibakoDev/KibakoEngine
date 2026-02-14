@@ -51,7 +51,8 @@ namespace KibakoEngine {
         void PushGeometryRaw(const Texture2D* texture,
             const Vertex* vertices, size_t vertexCount,
             const std::uint32_t* indices, size_t indexCount,
-            int layer = 0);
+            int layer = 0,
+            const RectF& clipRect = RectF::FromXYWH(0.0f, 0.0f, 0.0f, 0.0f));
 
         void ResetStats() { m_stats = {}; }
         [[nodiscard]] const SpriteBatchStats& Stats() const { return m_stats; }
@@ -75,6 +76,8 @@ namespace KibakoEngine {
             std::vector<Vertex>      vertices;
             std::vector<std::uint32_t> indices;
             int layer = 0;
+            bool hasClipRect = false;
+            RectF clipRect{};
         };
 
         struct CBVS {
@@ -87,6 +90,8 @@ namespace KibakoEngine {
             int              layer = 0;
             std::uint32_t    firstIndex = 0;
             std::uint32_t    indexCount = 0;
+            bool             useScissor = false;
+            D3D11_RECT       scissorRect{ 0, 0, 0, 0 };
         };
 
         struct UnifiedCommand {
@@ -119,6 +124,7 @@ namespace KibakoEngine {
         Microsoft::WRL::ComPtr<ID3D11BlendState>        m_blendAlpha;
         Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_depthDisabled;
         Microsoft::WRL::ComPtr<ID3D11RasterizerState>   m_rasterCullNone;
+        Microsoft::WRL::ComPtr<ID3D11RasterizerState>   m_rasterCullNoneScissor;
 
         // Logical commands collected during a frame
         std::vector<DrawCommand>     m_commands;         // sprite quads

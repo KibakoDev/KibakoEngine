@@ -70,6 +70,7 @@ namespace KibakoEngine {
         m_blendAlpha.Reset();
         m_depthDisabled.Reset();
         m_rasterCullNone.Reset();
+        m_rasterCullNoneScissor.Reset();
 
         m_device = nullptr;
         m_context = nullptr;
@@ -149,12 +150,32 @@ namespace KibakoEngine {
         // Sort by layer then texture to maximize batching
         std::stable_sort(
             m_unifiedCommands.begin(), m_unifiedCommands.end(),
-            [](const Unified& a, const Unified& b) {
+            [this](const Unified& a, const Unified& b) {
                 if (a.layer != b.layer)
                     return a.layer < b.layer;
                 const auto srvA = a.texture->GetSRV();
                 const auto srvB = b.texture->GetSRV();
-                return srvA < srvB;
+                if (srvA != srvB)
+                    return srvA < srvB;
+
+                if (a.isSprite != b.isSprite)
+                    return a.isSprite;
+
+                if (!a.isSprite) {
+                    const auto& ga = m_geometryCommands[a.index];
+                    const auto& gb = m_geometryCommands[b.index];
+                    if (ga.hasClipRect != gb.hasClipRect)
+                        return !ga.hasClipRect;
+
+                    if (ga.hasClipRect) {
+                        if (ga.clipRect.x != gb.clipRect.x) return ga.clipRect.x < gb.clipRect.x;
+                        if (ga.clipRect.y != gb.clipRect.y) return ga.clipRect.y < gb.clipRect.y;
+                        if (ga.clipRect.w != gb.clipRect.w) return ga.clipRect.w < gb.clipRect.w;
+                        if (ga.clipRect.h != gb.clipRect.h) return ga.clipRect.h < gb.clipRect.h;
+                    }
+                }
+
+                return a.index < b.index;
             });
 
         // Precompute the total vertex and index counts
@@ -277,15 +298,37 @@ namespace KibakoEngine {
             const std::uint32_t cmdIndexCount =
                 static_cast<std::uint32_t>(currentIndexBase - cmdFirstIndex);
 
-            // Merge contiguous commands that share layer and texture
+            bool cmdUseScissor = false;
+            D3D11_RECT cmdScissor{ 0, 0, 0, 0 };
+            if (!u.isSprite) {
+                const GeometryCommand& geo = m_geometryCommands[u.index];
+                if (geo.hasClipRect) {
+                    cmdUseScissor = true;
+                    cmdScissor.left = static_cast<LONG>(geo.clipRect.x);
+                    cmdScissor.top = static_cast<LONG>(geo.clipRect.y);
+                    cmdScissor.right = static_cast<LONG>(geo.clipRect.x + geo.clipRect.w);
+                    cmdScissor.bottom = static_cast<LONG>(geo.clipRect.y + geo.clipRect.h);
+                }
+            }
+
+            // Merge contiguous commands that share layer, texture and scissor state
             if (!haveRange) {
                 haveRange = true;
                 currentRange.texture = u.texture;
                 currentRange.layer = u.layer;
                 currentRange.firstIndex = cmdFirstIndex;
                 currentRange.indexCount = cmdIndexCount;
+                currentRange.useScissor = cmdUseScissor;
+                currentRange.scissorRect = cmdScissor;
             }
-            else if (u.texture == currentRange.texture && u.layer == currentRange.layer) {
+            else if (u.texture == currentRange.texture &&
+                     u.layer == currentRange.layer &&
+                     cmdUseScissor == currentRange.useScissor &&
+                     (!cmdUseScissor || (
+                        cmdScissor.left == currentRange.scissorRect.left &&
+                        cmdScissor.top == currentRange.scissorRect.top &&
+                        cmdScissor.right == currentRange.scissorRect.right &&
+                        cmdScissor.bottom == currentRange.scissorRect.bottom))) {
                 currentRange.indexCount += cmdIndexCount;
             }
             else {
@@ -294,6 +337,8 @@ namespace KibakoEngine {
                 currentRange.layer = u.layer;
                 currentRange.firstIndex = cmdFirstIndex;
                 currentRange.indexCount = cmdIndexCount;
+                currentRange.useScissor = cmdUseScissor;
+                currentRange.scissorRect = cmdScissor;
             }
         }
 
@@ -344,6 +389,14 @@ namespace KibakoEngine {
         m_context->PSSetSamplers(0, 1, &sampler);
 
         for (const DrawRange& range : m_drawRanges) {
+            if (range.useScissor) {
+                m_context->RSSetState(m_rasterCullNoneScissor.Get());
+                m_context->RSSetScissorRects(1, &range.scissorRect);
+            }
+            else {
+                m_context->RSSetState(m_rasterCullNone.Get());
+            }
+
             ID3D11ShaderResourceView* srv =
                 range.texture ? range.texture->GetSRV()
                 : (m_defaultWhite.IsValid() ? m_defaultWhite.GetSRV() : nullptr);
@@ -378,7 +431,8 @@ namespace KibakoEngine {
     void SpriteBatch2D::PushGeometryRaw(const Texture2D* texture,
         const Vertex* vertices, size_t vertexCount,
         const std::uint32_t* indices, size_t indexCount,
-        int layer)
+        int layer,
+        const RectF& clipRect)
     {
 #if KBK_DEBUG_BUILD
         KBK_ASSERT(m_isDrawing, "SpriteBatch2D::PushGeometryRaw called outside Begin/End");
@@ -392,6 +446,8 @@ namespace KibakoEngine {
         GeometryCommand cmd;
         cmd.texture = texture ? texture : DefaultWhiteTexture();
         cmd.layer = layer;
+        cmd.hasClipRect = clipRect.w > 0.0f && clipRect.h > 0.0f;
+        cmd.clipRect = clipRect;
         cmd.vertices.assign(vertices, vertices + vertexCount);
         cmd.indices.assign(indices, indices + indexCount);
         m_geometryCommands.push_back(std::move(cmd));
@@ -591,6 +647,13 @@ float4 main(float4 position : SV_Position,
         hr = device->CreateRasterizerState(&rast, m_rasterCullNone.GetAddressOf());
         if (FAILED(hr)) {
             KbkError(kLogChannel, "CreateRasterizerState failed: 0x%08X", static_cast<unsigned>(hr));
+            return false;
+        }
+
+        rast.ScissorEnable = TRUE;
+        hr = device->CreateRasterizerState(&rast, m_rasterCullNoneScissor.GetAddressOf());
+        if (FAILED(hr)) {
+            KbkError(kLogChannel, "CreateRasterizerState (scissor) failed: 0x%08X", static_cast<unsigned>(hr));
             return false;
         }
 
