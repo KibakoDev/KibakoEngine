@@ -100,6 +100,9 @@ namespace KibakoEngine {
 
         m_commands.clear();
         m_geometryCommands.clear();
+
+        m_commands.reserve(m_spriteReserveHint);
+        m_geometryCommands.reserve(m_geometryReserveHint);
     }
 
     void SpriteBatch2D::End()
@@ -124,7 +127,8 @@ namespace KibakoEngine {
             std::remove_if(
                 m_geometryCommands.begin(), m_geometryCommands.end(),
                 [](const GeometryCommand& cmd) {
-                    return cmd.vertices.empty() || cmd.indices.empty() ||
+                    return cmd.vertices == nullptr || cmd.indices == nullptr ||
+                        cmd.vertexCount == 0 || cmd.indexCount == 0 ||
                         cmd.texture == nullptr || cmd.texture->GetSRV() == nullptr;
                 }),
             m_geometryCommands.end()
@@ -188,8 +192,8 @@ namespace KibakoEngine {
             }
             else {
                 const auto& g = m_geometryCommands[u.index];
-                totalVertices += g.vertices.size();
-                totalIndices += g.indices.size();
+                totalVertices += g.vertexCount;
+                totalIndices += g.indexCount;
             }
         }
 
@@ -276,23 +280,32 @@ namespace KibakoEngine {
             }
             else {
                 const GeometryCommand& geo = m_geometryCommands[u.index];
+                Vertex* outVertices = m_vertexScratch.data() + currentVertexBase;
 
-                // Copy vertices into the shared scratch buffer without any additional transform
-                std::memcpy(
-                    m_vertexScratch.data() + currentVertexBase,
-                    geo.vertices.data(),
-                    geo.vertices.size() * sizeof(Vertex)
-                );
+                if (geo.hasTranslation) {
+                    for (size_t i = 0; i < geo.vertexCount; ++i) {
+                        outVertices[i] = geo.vertices[i];
+                        outVertices[i].position.x += geo.translation.x;
+                        outVertices[i].position.y += geo.translation.y;
+                    }
+                }
+                else {
+                    std::memcpy(
+                        outVertices,
+                        geo.vertices,
+                        geo.vertexCount * sizeof(Vertex)
+                    );
+                }
 
                 // Copy indices while offsetting into the combined vertex buffer
                 std::uint32_t* idxOut = m_indexScratch.data() + currentIndexBase;
                 const std::uint32_t base = static_cast<std::uint32_t>(currentVertexBase);
-                for (size_t i = 0; i < geo.indices.size(); ++i) {
+                for (size_t i = 0; i < geo.indexCount; ++i) {
                     idxOut[i] = base + geo.indices[i];
                 }
 
-                currentVertexBase += geo.vertices.size();
-                currentIndexBase += geo.indices.size();
+                currentVertexBase += geo.vertexCount;
+                currentIndexBase += geo.indexCount;
             }
 
             const std::uint32_t cmdIndexCount =
@@ -388,27 +401,42 @@ namespace KibakoEngine {
         ID3D11SamplerState* sampler = m_samplerPoint.Get();
         m_context->PSSetSamplers(0, 1, &sampler);
 
+        bool currentRasterScissor = false;
+        ID3D11ShaderResourceView* boundSrv = nullptr;
+
         for (const DrawRange& range : m_drawRanges) {
             if (range.useScissor) {
-                m_context->RSSetState(m_rasterCullNoneScissor.Get());
+                if (!currentRasterScissor) {
+                    m_context->RSSetState(m_rasterCullNoneScissor.Get());
+                    currentRasterScissor = true;
+                }
                 m_context->RSSetScissorRects(1, &range.scissorRect);
             }
             else {
-                m_context->RSSetState(m_rasterCullNone.Get());
+                if (currentRasterScissor) {
+                    m_context->RSSetState(m_rasterCullNone.Get());
+                    currentRasterScissor = false;
+                }
             }
 
             ID3D11ShaderResourceView* srv =
                 range.texture ? range.texture->GetSRV()
                 : (m_defaultWhite.IsValid() ? m_defaultWhite.GetSRV() : nullptr);
 
-            m_context->PSSetShaderResources(0, 1, &srv);
+            if (srv != boundSrv) {
+                m_context->PSSetShaderResources(0, 1, &srv);
+                boundSrv = srv;
+            }
             m_context->DrawIndexed(range.indexCount, range.firstIndex, 0);
-
-            ID3D11ShaderResourceView* nullSrv = nullptr;
-            m_context->PSSetShaderResources(0, 1, &nullSrv);
 
             m_stats.drawCalls++;
         }
+
+        ID3D11ShaderResourceView* nullSrv = nullptr;
+        m_context->PSSetShaderResources(0, 1, &nullSrv);
+
+        m_spriteReserveHint = std::max(m_spriteReserveHint, m_commands.size());
+        m_geometryReserveHint = std::max(m_geometryReserveHint, m_geometryCommands.size());
     }
 
     void SpriteBatch2D::Push(const Texture2D& texture,
@@ -448,8 +476,44 @@ namespace KibakoEngine {
         cmd.layer = layer;
         cmd.hasClipRect = clipRect.w > 0.0f && clipRect.h > 0.0f;
         cmd.clipRect = clipRect;
-        cmd.vertices.assign(vertices, vertices + vertexCount);
-        cmd.indices.assign(indices, indices + indexCount);
+        cmd.ownedVertices.assign(vertices, vertices + vertexCount);
+        cmd.ownedIndices.assign(indices, indices + indexCount);
+        cmd.vertices = cmd.ownedVertices.data();
+        cmd.indices = cmd.ownedIndices.data();
+        cmd.vertexCount = cmd.ownedVertices.size();
+        cmd.indexCount = cmd.ownedIndices.size();
+        m_geometryCommands.push_back(std::move(cmd));
+    }
+
+    void SpriteBatch2D::PushGeometryView(const Texture2D* texture,
+        const Vertex* vertices,
+        size_t vertexCount,
+        const std::uint32_t* indices,
+        size_t indexCount,
+        int layer,
+        const RectF& clipRect,
+        XMFLOAT2 translation)
+    {
+#if KBK_DEBUG_BUILD
+        KBK_ASSERT(m_isDrawing, "SpriteBatch2D::PushGeometryView called outside Begin/End");
+#endif
+        if (!m_isDrawing)
+            return;
+
+        if (!vertices || !indices || vertexCount == 0 || indexCount == 0)
+            return;
+
+        GeometryCommand cmd;
+        cmd.texture = texture ? texture : DefaultWhiteTexture();
+        cmd.vertices = vertices;
+        cmd.indices = indices;
+        cmd.vertexCount = vertexCount;
+        cmd.indexCount = indexCount;
+        cmd.layer = layer;
+        cmd.hasClipRect = clipRect.w > 0.0f && clipRect.h > 0.0f;
+        cmd.clipRect = clipRect;
+        cmd.hasTranslation = std::fabs(translation.x) > 0.0f || std::fabs(translation.y) > 0.0f;
+        cmd.translation = translation;
         m_geometryCommands.push_back(std::move(cmd));
     }
 

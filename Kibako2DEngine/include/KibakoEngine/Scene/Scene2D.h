@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <deque>
+#include <unordered_map>
 
 #include <DirectXMath.h>
 
@@ -108,6 +109,8 @@ namespace KibakoEngine {
         void ResolveAssets(AssetManager& assets);
 
     private:
+        void RebuildNameLookup();
+
         EntityID m_nextID = 1;
         std::vector<Entity2D> m_entities;
 
@@ -117,6 +120,7 @@ namespace KibakoEngine {
 
         std::deque<CircleCollider2D> m_circlePool;
         std::deque<AABBCollider2D>   m_aabbPool;
+        std::unordered_map<std::string, EntityID> m_nameLookup;
     };
 
 } // namespace KibakoEngine

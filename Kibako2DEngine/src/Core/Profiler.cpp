@@ -8,6 +8,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace KibakoEngine::Profiler {
 
@@ -42,6 +43,31 @@ namespace KibakoEngine::Profiler {
         }
 
         constexpr std::uint32_t kFlushInterval = 120;
+
+        struct PendingSample
+        {
+            const char* name = nullptr;
+            double ms = 0.0;
+        };
+
+        thread_local std::vector<PendingSample> t_pendingSamples;
+        constexpr size_t kPendingFlushThreshold = 128;
+
+        void FlushPendingSamplesLocked()
+        {
+            if (t_pendingSamples.empty())
+                return;
+
+            auto& samples = Samples();
+            for (const PendingSample& pending : t_pendingSamples) {
+                auto& sample = samples[pending.name ? pending.name : "<null>"];
+                sample.totalMs += pending.ms;
+                sample.maxMs = std::max(sample.maxMs, pending.ms);
+                sample.minMs = std::min(sample.minMs, pending.ms);
+                sample.hits += 1;
+            }
+            t_pendingSamples.clear();
+        }
     } // namespace
 
     ScopedEvent::ScopedEvent(const char* name)
@@ -55,12 +81,11 @@ namespace KibakoEngine::Profiler {
         const auto end = Clock::now();
         const double ms = std::chrono::duration<double, std::milli>(end - m_start).count();
 
-        std::lock_guard<std::mutex> guard(ProfilerMutex());
-        auto& sample = Samples()[m_name ? m_name : "<null>"];
-        sample.totalMs += ms;
-        sample.maxMs = std::max(sample.maxMs, ms);
-        sample.minMs = std::min(sample.minMs, ms);
-        sample.hits += 1;
+        t_pendingSamples.push_back({ m_name, ms });
+        if (t_pendingSamples.size() >= kPendingFlushThreshold) {
+            std::lock_guard<std::mutex> guard(ProfilerMutex());
+            FlushPendingSamplesLocked();
+        }
     }
 
     void BeginFrame()
@@ -68,6 +93,7 @@ namespace KibakoEngine::Profiler {
         bool flushNow = false;
         {
             std::lock_guard<std::mutex> guard(ProfilerMutex());
+            FlushPendingSamplesLocked();
             auto& frames = FrameCounter();
             ++frames;
             flushNow = (frames % kFlushInterval) == 0;
@@ -82,6 +108,7 @@ namespace KibakoEngine::Profiler {
         std::unordered_map<std::string, SampleData> snapshot;
         {
             std::lock_guard<std::mutex> guard(ProfilerMutex());
+            FlushPendingSamplesLocked();
             auto& samples = Samples();
             if (samples.empty())
                 return;
@@ -100,4 +127,3 @@ namespace KibakoEngine::Profiler {
 } // namespace KibakoEngine::Profiler
 
 #endif
-
