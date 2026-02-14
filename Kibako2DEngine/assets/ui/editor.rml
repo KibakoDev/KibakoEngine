@@ -5,12 +5,10 @@
   </head>
 
   <body>
-    <!-- Top-left editor panel -->
     <div id="editor_root">
-      <!-- Topbar -->
       <div id="editor_topbar">
         <div id="editor_left">
-          <div id="editor_title">Kibako Editor</div>
+          <div id="editor_title">Kibako Scene Editor</div>
           <div id="editor_stats">
             <span id="stats_entities">Entities: 0</span>
             <span id="stats_fps">FPS: 0</span>
@@ -23,64 +21,58 @@
         </div>
       </div>
 
-      <!-- Body -->
       <div id="editor_body">
-        <!-- Hierarchy -->
         <div class="panel" id="panel_hierarchy">
           <div class="panel_header">
             <div class="panel_title">Hierarchy</div>
           </div>
 
-          <!-- Filled by UILayer.cpp -->
+          <div class="panel_subtitle">All scene entities</div>
           <div id="hierarchy_list"></div>
         </div>
 
-        <!-- Inspector -->
         <div class="panel" id="panel_inspector">
           <div class="panel_header">
             <div class="panel_title">Inspector</div>
           </div>
 
           <div id="inspector_content">
-            <div id="inspector_hint" class="hint">
-              Select an entity to inspect it.
-            </div>
+            <div id="inspector_hint" class="hint">Select an entity to inspect it.</div>
 
             <div class="row">
               <div class="label">Name</div>
               <input id="ins_name" type="text" value="" />
             </div>
 
-            <div class="section_title">Transform</div>
+            <div class="section_title">Transform (live)</div>
 
             <div class="row">
-              <div class="label">Pos</div>
+              <div class="label">Position</div>
               <div class="fields2">
-                <input id="ins_pos_x" type="text" value="0" />
-                <input id="ins_pos_y" type="text" value="0" />
+                <input id="ins_pos_x" type="text" value="0.000" />
+                <input id="ins_pos_y" type="text" value="0.000" />
               </div>
             </div>
 
             <div class="row">
-              <div class="label">Rot</div>
-              <input id="ins_rot" type="text" value="0" />
+              <div class="label">Rotation</div>
+              <input id="ins_rot" type="text" value="0.000" />
             </div>
 
             <div class="row">
               <div class="label">Scale</div>
               <div class="fields2">
-                <input id="ins_scale_x" type="text" value="1" />
-                <input id="ins_scale_y" type="text" value="1" />
+                <input id="ins_scale_x" type="text" value="1.000" />
+                <input id="ins_scale_y" type="text" value="1.000" />
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Footer -->
       <div id="editor_footer">
         <img id="logo" src="img/KibakoEngine_Logo_Black.png" />
-        <p id="commit">28118fe</p>
+        <p id="commit">Editor UI Refactor</p>
       </div>
     </div>
   </body>

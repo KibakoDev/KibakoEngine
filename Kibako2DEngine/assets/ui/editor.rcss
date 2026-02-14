@@ -1,48 +1,40 @@
-/* Base */
 body {
   margin: 0;
   padding: 0;
   width: 100%;
   min-height: 100vh;
-
   font-family: rmlui-debugger-font;
 }
 
-/* Root panel */
 #editor_root {
   position: absolute;
-  left: 12px;
-  top: 12px;
-
-  width: 380px;
-
+  left: 14px;
+  top: 14px;
+  width: 420px;
   display: flex;
   flex-direction: column;
-
-  background-color: rgba(16, 16, 16, 88%);
-  padding: 10px;
+  gap: 10px;
+  background-color: rgba(14, 16, 20, 93%);
+  border: 1px solid rgba(255, 255, 255, 10%);
+  padding: 12px;
 }
-
-/* ---------------- Topbar ---------------- */
 
 #editor_topbar {
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-
-  margin-bottom: 10px;
-}
-
-#editor_title {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 92%);
 }
 
 #editor_left {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+}
+
+#editor_title {
+  font-size: 17px;
+  color: rgba(255, 255, 255, 95%);
 }
 
 #editor_stats {
@@ -54,7 +46,7 @@ body {
 #stats_entities,
 #stats_fps {
   font-size: 11px;
-  color: rgba(255, 255, 255, 65%);
+  color: rgba(255, 255, 255, 68%);
 }
 
 #editor_actions {
@@ -62,8 +54,6 @@ body {
   flex-direction: row;
   gap: 8px;
 }
-
-/* ---------------- Panels ---------------- */
 
 #editor_body {
   display: flex;
@@ -74,9 +64,9 @@ body {
 .panel {
   display: flex;
   flex-direction: column;
-
-  background-color: rgba(255, 255, 255, 6%);
-  padding: 8px;
+  background-color: rgba(255, 255, 255, 5%);
+  border: 1px solid rgba(255, 255, 255, 8%);
+  padding: 9px;
 }
 
 .panel_header {
@@ -84,62 +74,63 @@ body {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
 .panel_title {
   font-size: 13px;
-  color: rgba(255, 255, 255, 86%);
+  color: rgba(255, 255, 255, 90%);
 }
 
-/* ---------------- Hierarchy ---------------- */
+.panel_subtitle {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 60%);
+  margin-bottom: 7px;
+}
 
 #hierarchy_list {
-  max-height: 220px;
+  max-height: 210px;
   overflow-y: auto;
-
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-/* ---------------- Buttons ---------------- */
-
 button {
-  color: rgba(255, 255, 255, 80%);
-  font-size: 13px;
-
+  color: rgba(255, 255, 255, 84%);
+  font-size: 12px;
   cursor: pointer;
-
+  border: 1px solid rgba(255, 255, 255, 10%);
   background-color: rgba(255, 255, 255, 6%);
   padding: 6px 10px;
 }
 
 button:hover {
-  color: rgba(255, 255, 255, 96%);
-  background-color: rgba(255, 255, 255, 9%);
+  color: rgba(255, 255, 255, 97%);
+  background-color: rgba(255, 255, 255, 10%);
 }
 
-/* Entity buttons injected by code */
 .entity {
   width: 100%;
   text-align: left;
-
+  border: 1px solid rgba(255, 255, 255, 8%);
   background-color: rgba(255, 255, 255, 4%);
   padding: 6px 8px;
 }
 
 .entity:hover {
-  background-color: rgba(255, 255, 255, 7%);
+  background-color: rgba(255, 255, 255, 8%);
 }
 
 .entity.selected {
-  background-color: rgba(255, 255, 255, 14%);
-  color: rgba(255, 255, 255, 96%);
+  background-color: rgba(160, 215, 255, 22%);
+  border: 1px solid rgba(160, 215, 255, 40%);
+  color: rgba(255, 255, 255, 98%);
 }
 
-/* ---------------- Inspector ---------------- */
+.entity.inactive {
+  color: rgba(255, 255, 255, 52%);
+}
 
 #inspector_content {
   display: flex;
@@ -149,7 +140,7 @@ button:hover {
 
 .hint {
   font-size: 11px;
-  color: rgba(255, 255, 255, 65%);
+  color: rgba(255, 255, 255, 64%);
   margin-bottom: 2px;
 }
 
@@ -159,8 +150,8 @@ button:hover {
 
 .section_title {
   font-size: 12px;
-  color: rgba(255, 255, 255, 82%);
-  margin-top: 4px;
+  color: rgba(255, 255, 255, 84%);
+  margin-top: 2px;
 }
 
 .row {
@@ -172,9 +163,9 @@ button:hover {
 }
 
 .label {
-  width: 60px;
+  width: 72px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 78%);
+  color: rgba(255, 255, 255, 80%);
 }
 
 .fields2 {
@@ -183,41 +174,33 @@ button:hover {
   gap: 6px;
 }
 
-/* Inputs */
 input {
-  background-color: rgba(0, 0, 0, 35%);
-  color: rgba(255, 255, 255, 92%);
+  background-color: rgba(0, 0, 0, 42%);
+  border: 1px solid rgba(255, 255, 255, 10%);
+  color: rgba(255, 255, 255, 94%);
   font-size: 12px;
-
   padding: 5px 6px;
-  width: 100px;
+  width: 98px;
 }
 
-#ins_name {
-  width: 240px;
-}
-
+#ins_name,
 #ins_rot {
-  width: 240px;
+  width: 242px;
 }
 
 #ins_pos_x,
 #ins_pos_y,
 #ins_scale_x,
 #ins_scale_y {
-  width: 116px;
+  width: 118px;
 }
 
-/* ---------------- Footer ---------------- */
-
 #editor_footer {
-  margin-top: 10px;
-
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;
-
+  margin-top: 2px;
   opacity: 0.85;
 }
 
@@ -228,5 +211,5 @@ input {
 
 #commit {
   font-size: 10px;
-  color: rgba(255, 255, 255, 65%);
+  color: rgba(255, 255, 255, 64%);
 }

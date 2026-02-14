@@ -16,12 +16,16 @@
 #include <system_error>
 #include <vector>
 #include <functional>
+#include <sstream>
+#include <iomanip>
 
+#include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
 #include <RmlUi/Core/Event.h>
 #include <RmlUi/Core/EventListener.h>
+#include <RmlUi/Core/Input.h>
 
 namespace KibakoEngine {
 
@@ -119,7 +123,13 @@ namespace KibakoEngine {
             const char* begin = text.c_str();
             char* end = nullptr;
             const float value = std::strtof(begin, &end);
-            if (end == begin || *end != '\0')
+            if (end == begin)
+                return false;
+
+            // ignore trailing spaces/tabs
+            while (*end == ' ' || *end == '\t')
+                ++end;
+            if (*end != '\0')
                 return false;
 
             out = value;
@@ -131,9 +141,12 @@ namespace KibakoEngine {
             return Rml::String(value.c_str());
         }
 
-        static Rml::String ToRmlString(float value)
+        static std::string FormatFloat(float value)
         {
-            return Rml::String(std::to_string(value).c_str());
+            std::ostringstream os;
+            os.setf(std::ios::fixed, std::ios::floatfield);
+            os << std::setprecision(3) << value;
+            return os.str();
         }
     }
 
@@ -143,6 +156,9 @@ namespace KibakoEngine {
         m_enabled = true;
         m_statsAccum = 0.0f;
         m_refreshAccum = 0.0f;
+        m_selectedEntity = 0;
+        m_isApplyingInspector = false;
+        m_inspectorDirty = false;
 
         auto& ui = app.UI();
 
@@ -203,6 +219,7 @@ namespace KibakoEngine {
         if (!m_insScaleY)     KbkWarn(kLogChannel, "Missing #ins_scale_y element");
 
         BindButtons();
+        BindInspectorInputs();
         RefreshHierarchy();
         RefreshInspector();
 
@@ -226,6 +243,14 @@ namespace KibakoEngine {
         m_insScaleX = nullptr;
         m_insScaleY = nullptr;
         m_selectedEntity = 0;
+        m_isApplyingInspector = false;
+        m_inspectorDirty = false;
+        m_lastInsName.clear();
+        m_lastInsPosX.clear();
+        m_lastInsPosY.clear();
+        m_lastInsRot.clear();
+        m_lastInsScaleX.clear();
+        m_lastInsScaleY.clear();
 
         if (m_doc) {
             m_doc->Hide();
@@ -245,6 +270,7 @@ namespace KibakoEngine {
     {
         m_scene = scene;
         m_selectedEntity = 0;
+        m_inspectorDirty = false;
         RefreshHierarchy();
         RefreshInspector();
     }
@@ -291,12 +317,46 @@ namespace KibakoEngine {
         }
     }
 
+    void EditorOverlay::BindInspectorInputs()
+    {
+        auto bind = [this](Rml::ElementFormControlInput* input) {
+            if (!input)
+                return;
+
+            input->AddEventListener("change", new ButtonListener([this](Rml::Event&) {
+                m_inspectorDirty = true;
+                ApplyInspectorLive();
+            }));
+
+            input->AddEventListener("blur", new ButtonListener([this](Rml::Event&) {
+                m_inspectorDirty = true;
+                ApplyInspectorLive();
+            }));
+
+            input->AddEventListener("keydown", new ButtonListener([this](Rml::Event& e) {
+                if (e.GetParameter<Rml::Input::KeyIdentifier>("key_identifier", Rml::Input::KI_UNKNOWN)
+                    == Rml::Input::KI_RETURN) {
+                    m_inspectorDirty = true;
+                    ApplyInspectorLive();
+                }
+            }));
+        };
+
+        bind(m_insName);
+        bind(m_insPosX);
+        bind(m_insPosY);
+        bind(m_insRot);
+        bind(m_insScaleX);
+        bind(m_insScaleY);
+    }
+
     void EditorOverlay::SelectEntity(EntityID id)
     {
         if (m_selectedEntity == id)
             return;
 
         m_selectedEntity = id;
+        m_inspectorDirty = false;
         RefreshInspector();
     }
 
@@ -304,6 +364,9 @@ namespace KibakoEngine {
     {
         if (!m_enabled || !m_doc || !m_app)
             return;
+
+        if (m_inspectorDirty)
+            ApplyInspectorLive();
 
         m_statsAccum += dt;
         m_refreshAccum += dt;
@@ -315,7 +378,8 @@ namespace KibakoEngine {
         if (m_refreshAccum >= m_refreshPeriod) {
             m_refreshAccum = 0.0f;
             RefreshHierarchy();
-            RefreshInspector();
+            if (!HasFocusedInspectorField())
+                RefreshInspector();
         }
     }
 
@@ -359,13 +423,13 @@ namespace KibakoEngine {
 
     void EditorOverlay::RefreshHierarchy()
     {
-        if (!m_hierarchyList)
+        if (!m_hierarchyList || !m_doc)
             return;
 
         m_hierarchyList->SetInnerRML("");
 
         if (!m_scene) {
-            auto hint = m_doc ? m_doc->CreateElement("div") : Rml::ElementPtr{};
+            auto hint = m_doc->CreateElement("div");
             if (hint) {
                 hint->SetClass("hint", true);
                 hint->SetInnerRML("No scene loaded.");
@@ -375,16 +439,16 @@ namespace KibakoEngine {
         }
 
         bool selectionStillValid = false;
+        const auto& entities = m_scene->Entities();
 
-        for (const auto& entity : m_scene->Entities()) {
-            if (!entity.active)
-                continue;
-
+        for (const auto& entity : entities) {
             auto button = m_doc->CreateElement("button");
             if (!button)
                 continue;
 
             button->SetClass("entity", true);
+            if (!entity.active)
+                button->SetClass("inactive", true);
 
             const auto* name = m_scene->TryGetName(entity.id);
             std::string label = name ? name->name : "";
@@ -392,6 +456,9 @@ namespace KibakoEngine {
                 label = "Entity ";
                 label.append(std::to_string(entity.id));
             }
+
+            if (!entity.active)
+                label.append(" (inactive)");
 
             button->SetInnerRML(ToRmlString(label));
 
@@ -417,6 +484,37 @@ namespace KibakoEngine {
         }
     }
 
+    bool EditorOverlay::HasFocusedInspectorField() const
+    {
+        auto focused = [](const Rml::ElementFormControlInput* input) {
+            return input && input->IsPseudoClassSet("focus");
+        };
+
+        return focused(m_insName)
+            || focused(m_insPosX)
+            || focused(m_insPosY)
+            || focused(m_insRot)
+            || focused(m_insScaleX)
+            || focused(m_insScaleY);
+    }
+
+    void EditorOverlay::SetInspectorDefaultValues()
+    {
+        if (m_insName) m_insName->SetValue("");
+        if (m_insPosX) m_insPosX->SetValue("0.000");
+        if (m_insPosY) m_insPosY->SetValue("0.000");
+        if (m_insRot) m_insRot->SetValue("0.000");
+        if (m_insScaleX) m_insScaleX->SetValue("1.000");
+        if (m_insScaleY) m_insScaleY->SetValue("1.000");
+
+        m_lastInsName.clear();
+        m_lastInsPosX = "0.000";
+        m_lastInsPosY = "0.000";
+        m_lastInsRot = "0.000";
+        m_lastInsScaleX = "1.000";
+        m_lastInsScaleY = "1.000";
+    }
+
     void EditorOverlay::RefreshInspector()
     {
         if (!m_inspectorHint)
@@ -425,12 +523,7 @@ namespace KibakoEngine {
         if (!m_scene) {
             m_inspectorHint->SetClass("hidden", false);
             m_inspectorHint->SetInnerRML("No scene loaded.");
-            if (m_insName) m_insName->SetValue("");
-            if (m_insPosX) m_insPosX->SetValue("0");
-            if (m_insPosY) m_insPosY->SetValue("0");
-            if (m_insRot) m_insRot->SetValue("0");
-            if (m_insScaleX) m_insScaleX->SetValue("1");
-            if (m_insScaleY) m_insScaleY->SetValue("1");
+            SetInspectorDefaultValues();
             return;
         }
 
@@ -439,35 +532,55 @@ namespace KibakoEngine {
         m_inspectorHint->SetClass("hidden", hasSelection);
 
         if (!hasSelection) {
-            if (m_insName) m_insName->SetValue("");
-            if (m_insPosX) m_insPosX->SetValue("0");
-            if (m_insPosY) m_insPosY->SetValue("0");
-            if (m_insRot) m_insRot->SetValue("0");
-            if (m_insScaleX) m_insScaleX->SetValue("1");
-            if (m_insScaleY) m_insScaleY->SetValue("1");
+            SetInspectorDefaultValues();
             return;
         }
 
         auto* entity = m_scene->FindEntity(m_selectedEntity);
-        if (!entity || !entity->active) {
+        if (!entity) {
             m_selectedEntity = 0;
             m_inspectorHint->SetClass("hidden", false);
+            SetInspectorDefaultValues();
             return;
         }
 
         const auto* name = m_scene->TryGetName(entity->id);
-        if (m_insName)
-            m_insName->SetValue(ToRmlString(name ? name->name : ""));
-        if (m_insPosX)
-            m_insPosX->SetValue(ToRmlString(entity->transform.position.x));
-        if (m_insPosY)
-            m_insPosY->SetValue(ToRmlString(entity->transform.position.y));
-        if (m_insRot)
-            m_insRot->SetValue(ToRmlString(entity->transform.rotation));
-        if (m_insScaleX)
-            m_insScaleX->SetValue(ToRmlString(entity->transform.scale.x));
-        if (m_insScaleY)
-            m_insScaleY->SetValue(ToRmlString(entity->transform.scale.y));
+
+        const std::string nameText = name ? name->name : "";
+        const std::string posXText = FormatFloat(entity->transform.position.x);
+        const std::string posYText = FormatFloat(entity->transform.position.y);
+        const std::string rotText = FormatFloat(entity->transform.rotation);
+        const std::string scaleXText = FormatFloat(entity->transform.scale.x);
+        const std::string scaleYText = FormatFloat(entity->transform.scale.y);
+
+        auto maybeSet = [this](Rml::ElementFormControlInput* input, const std::string& value, std::string& lastValue) {
+            if (!input)
+                return;
+
+            if (!m_isApplyingInspector && input->IsPseudoClassSet("focus"))
+                return;
+
+            if (lastValue == value)
+                return;
+
+            input->SetValue(ToRmlString(value));
+            lastValue = value;
+        };
+
+        maybeSet(m_insName, nameText, m_lastInsName);
+        maybeSet(m_insPosX, posXText, m_lastInsPosX);
+        maybeSet(m_insPosY, posYText, m_lastInsPosY);
+        maybeSet(m_insRot, rotText, m_lastInsRot);
+        maybeSet(m_insScaleX, scaleXText, m_lastInsScaleX);
+        maybeSet(m_insScaleY, scaleYText, m_lastInsScaleY);
+    }
+
+    void EditorOverlay::ApplyInspectorLive()
+    {
+        if (!m_inspectorDirty)
+            return;
+
+        ApplyInspector();
     }
 
     void EditorOverlay::ApplyInspector()
@@ -476,8 +589,10 @@ namespace KibakoEngine {
             return;
 
         auto* entity = m_scene->FindEntity(m_selectedEntity);
-        if (!entity || !entity->active)
+        if (!entity)
             return;
+
+        m_isApplyingInspector = true;
 
         if (m_insName) {
             const auto& nameValue = m_insName->GetValue();
@@ -487,22 +602,36 @@ namespace KibakoEngine {
             else if (!nameValue.empty()) {
                 m_scene->AddName(entity->id, nameValue.c_str());
             }
+            m_lastInsName = nameValue.c_str();
         }
 
         float value = 0.0f;
-        if (m_insPosX && ParseFloat(m_insPosX->GetValue(), value))
+        if (m_insPosX && ParseFloat(m_insPosX->GetValue(), value)) {
             entity->transform.position.x = value;
-        if (m_insPosY && ParseFloat(m_insPosY->GetValue(), value))
+            m_lastInsPosX = m_insPosX->GetValue().c_str();
+        }
+        if (m_insPosY && ParseFloat(m_insPosY->GetValue(), value)) {
             entity->transform.position.y = value;
-        if (m_insRot && ParseFloat(m_insRot->GetValue(), value))
+            m_lastInsPosY = m_insPosY->GetValue().c_str();
+        }
+        if (m_insRot && ParseFloat(m_insRot->GetValue(), value)) {
             entity->transform.rotation = value;
-        if (m_insScaleX && ParseFloat(m_insScaleX->GetValue(), value))
+            m_lastInsRot = m_insRot->GetValue().c_str();
+        }
+        if (m_insScaleX && ParseFloat(m_insScaleX->GetValue(), value)) {
             entity->transform.scale.x = value;
-        if (m_insScaleY && ParseFloat(m_insScaleY->GetValue(), value))
+            m_lastInsScaleX = m_insScaleX->GetValue().c_str();
+        }
+        if (m_insScaleY && ParseFloat(m_insScaleY->GetValue(), value)) {
             entity->transform.scale.y = value;
+            m_lastInsScaleY = m_insScaleY->GetValue().c_str();
+        }
 
+        m_inspectorDirty = false;
         RefreshHierarchy();
         RefreshInspector();
+
+        m_isApplyingInspector = false;
     }
 
 } // namespace KibakoEngine

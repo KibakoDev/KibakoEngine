@@ -7,6 +7,7 @@
 #if KBK_DEBUG_BUILD
 
 #include <functional>
+#include <string>
 
 namespace Rml {
     class ElementDocument;
@@ -38,11 +39,15 @@ namespace KibakoEngine {
 
     private:
         void BindButtons();
+        void BindInspectorInputs();
         void SelectEntity(EntityID id);
         void RefreshStats();
         void RefreshHierarchy();
         void RefreshInspector();
         void ApplyInspector();
+        void ApplyInspectorLive();
+        bool HasFocusedInspectorField() const;
+        void SetInspectorDefaultValues();
 
     private:
         Application* m_app = nullptr;
@@ -69,6 +74,15 @@ namespace KibakoEngine {
         float m_refreshAccum = 0.0f;
         float m_refreshPeriod = 0.50f; // 2x/sec
         bool  m_enabled = true;
+        bool  m_isApplyingInspector = false;
+        bool  m_inspectorDirty = false;
+
+        std::string m_lastInsName;
+        std::string m_lastInsPosX;
+        std::string m_lastInsPosY;
+        std::string m_lastInsRot;
+        std::string m_lastInsScaleX;
+        std::string m_lastInsScaleY;
     };
 
 } // namespace KibakoEngine
