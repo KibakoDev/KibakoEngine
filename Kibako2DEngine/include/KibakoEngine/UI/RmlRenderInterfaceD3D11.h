@@ -49,9 +49,9 @@ namespace KibakoEngine {
             m_uiHeight = (uiHeight > 0) ? uiHeight : 1;
         }
 
-        // Transform / scissor are ignored; UI vertices are emitted directly in pixel space.
-        void EnableScissorRegion(bool enable) override { (void)enable; }
-        void SetScissorRegion(Rml::Rectanglei region) override { (void)region; }
+        // RmlUI state callbacks
+        void EnableScissorRegion(bool enable) override;
+        void SetScissorRegion(Rml::Rectanglei region) override;
         void SetTransform(const Rml::Matrix4f* transform) override { (void)transform; }
 
     private:
@@ -72,6 +72,9 @@ namespace KibakoEngine {
 
         int m_uiWidth = 1; // in pixels (window space)
         int m_uiHeight = 1;
+
+        bool m_scissorEnabled = false;
+        Rml::Rectanglei m_scissorRegion{ 0, 0, 0, 0 };
     };
 
 } // namespace KibakoEngine

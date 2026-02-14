@@ -4,12 +4,22 @@
 #include "KibakoEngine/Renderer/RendererD3D11.h"
 #include "KibakoEngine/Core/Log.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace KibakoEngine {
 
     namespace {
         constexpr const char* kLog = "RmlRender";
+
+        static RectF BuildClipRect(const Rml::Rectanglei& region)
+        {
+            const float left = static_cast<float>(region.Left());
+            const float top = static_cast<float>(region.Top());
+            const float width = static_cast<float>(std::max(0, region.Width()));
+            const float height = static_cast<float>(std::max(0, region.Height()));
+            return RectF::FromXYWH(left, top, width, height);
+        }
     }
 
     //-------------------------------------
@@ -105,12 +115,33 @@ namespace KibakoEngine {
             texPtr = m_Renderer.Batch().DefaultWhiteTexture();
         }
 
+        if (m_scissorEnabled) {
+            m_Renderer.Batch().PushGeometryRaw(
+                texPtr,
+                vertices, vertexCount,
+                geo.indices.data(), geo.indices.size(),
+                100000,
+                BuildClipRect(m_scissorRegion)
+            );
+            return;
+        }
+
         m_Renderer.Batch().PushGeometryRaw(
             texPtr,
             vertices, vertexCount,
             geo.indices.data(), geo.indices.size(),
-            100000 // put UI on top
+            100000
         );
+    }
+
+    void RmlRenderInterfaceD3D11::EnableScissorRegion(bool enable)
+    {
+        m_scissorEnabled = enable;
+    }
+
+    void RmlRenderInterfaceD3D11::SetScissorRegion(Rml::Rectanglei region)
+    {
+        m_scissorRegion = region;
     }
 
     //-------------------------------------
