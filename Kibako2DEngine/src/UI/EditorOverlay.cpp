@@ -365,11 +365,11 @@ namespace KibakoEngine {
         m_hierarchyList->SetInnerRML("");
 
         if (!m_scene) {
-            auto* hint = m_doc ? m_doc->CreateElement("div") : nullptr;
+            auto hint = m_doc ? m_doc->CreateElement("div") : Rml::ElementPtr{};
             if (hint) {
                 hint->SetClass("hint", true);
                 hint->SetInnerRML("No scene loaded.");
-                m_hierarchyList->AppendChild(hint);
+                m_hierarchyList->AppendChild(std::move(hint));
             }
             return;
         }
@@ -380,7 +380,7 @@ namespace KibakoEngine {
             if (!entity.active)
                 continue;
 
-            auto* button = m_doc->CreateElement("button");
+            auto button = m_doc->CreateElement("button");
             if (!button)
                 continue;
 
@@ -408,7 +408,7 @@ namespace KibakoEngine {
                 selectionStillValid = true;
             }
 
-            m_hierarchyList->AppendChild(button);
+            m_hierarchyList->AppendChild(std::move(button));
         }
 
         if (!selectionStillValid && m_selectedEntity != 0) {

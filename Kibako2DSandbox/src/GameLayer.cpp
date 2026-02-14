@@ -91,6 +91,10 @@ void GameLayer::OnRender(SpriteBatch2D& batch)
 
     if (m_showCollisionDebug)
         RenderCollisionDebug(batch);
+
+    auto* e = m_scene.FindByName("LeftStar");
+
+    e->transform.position.y += 0.1f;
 }
 
 void GameLayer::FixedSimStep(float fixedDt)
