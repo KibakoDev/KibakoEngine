@@ -6,12 +6,15 @@
 
 #if KBK_DEBUG_BUILD
 
+#include <cstdint>
 #include <functional>
+#include <string>
 
 namespace Rml {
     class ElementDocument;
     class Element;
     class ElementFormControlInput;
+    class Event;
 }
 
 namespace KibakoEngine {
@@ -39,10 +42,23 @@ namespace KibakoEngine {
     private:
         void BindButtons();
         void SelectEntity(EntityID id);
+        void OnQuitClicked(Rml::Event& e);
+        void OnApplyClicked(Rml::Event& e);
+        void OnHierarchyEntityClicked(EntityID id, Rml::Event& e);
+        void OnInspectorFocus(Rml::Event& e);
+        void OnInspectorBlur(Rml::Event& e);
+        void OnInspectorInputChanged(Rml::Event& e);
+
+        void MarkHierarchyDirty();
+        void MarkInspectorDirty();
+        void MarkStatsDirty();
+
         void RefreshStats();
         void RefreshHierarchy();
-        void RefreshInspector();
+        void RefreshInspector(bool force = false);
         void ApplyInspector();
+
+        [[nodiscard]] std::uint64_t BuildSceneDigest() const;
 
     private:
         Application* m_app = nullptr;
@@ -67,7 +83,15 @@ namespace KibakoEngine {
         float m_statsAccum = 0.0f;
         float m_statsPeriod = 0.10f; // 10x/sec
         float m_refreshAccum = 0.0f;
-        float m_refreshPeriod = 0.50f; // 2x/sec
+        float m_refreshPeriod = 0.10f; // 10x/sec polling for scene changes
+
+        bool m_rebuildHierarchy = true;
+        bool m_rebuildInspector = true;
+        bool m_refreshStats = true;
+        bool m_inspectorEditing = false;
+
+        std::uint64_t m_lastSceneDigest = 0;
+
         bool  m_enabled = true;
     };
 
