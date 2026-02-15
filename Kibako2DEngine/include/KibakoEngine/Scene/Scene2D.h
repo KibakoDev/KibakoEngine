@@ -103,7 +103,7 @@ namespace KibakoEngine {
         // ---- Runtime --------------------------------------------------------
 
         void Update(float dt);
-        void Render(SpriteBatch2D& batch) const;
+        void Render(SpriteBatch2D& batch, const RectF* visibleRect = nullptr) const;
 
         [[nodiscard]] bool LoadFromFile(const char* path, AssetManager& assets);
         void ResolveAssets(AssetManager& assets);

@@ -18,6 +18,7 @@ namespace KibakoEngine {
     {
         std::uint32_t drawCalls = 0;
         std::uint32_t spritesSubmitted = 0; // counts only Push() sprite submissions
+        std::uint32_t spritesCulled = 0;
     };
 
     class SpriteBatch2D {
@@ -65,6 +66,7 @@ namespace KibakoEngine {
             DirectX::XMFLOAT2 translation = { 0.0f, 0.0f });
 
         void ResetStats() { m_stats = {}; }
+        void RecordSpriteCulled() { ++m_stats.spritesCulled; }
         [[nodiscard]] const SpriteBatchStats& Stats() const { return m_stats; }
 
         [[nodiscard]] const Texture2D* DefaultWhiteTexture() const;

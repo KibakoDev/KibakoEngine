@@ -5,7 +5,10 @@
 #include "KibakoEngine/Core/Debug.h"
 #include "KibakoEngine/Core/Log.h"
 #include "KibakoEngine/Core/Profiler.h"
+#include "KibakoEngine/Renderer/Camera2D.h"
 #include "KibakoEngine/Renderer/DebugDraw2D.h"
+
+#include <cmath>
 
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_scancode.h>
@@ -87,7 +90,19 @@ void GameLayer::OnRender(SpriteBatch2D& batch)
 {
     KBK_PROFILE_SCOPE("GameLayerRender");
 
-    m_scene.Render(batch);
+    const Camera2D& camera = m_app.Renderer().Camera();
+    if (std::fabs(camera.GetRotation()) > 0.0001f) {
+        m_scene.Render(batch);
+    }
+    else {
+        const RectF visibleRect = RectF::FromXYWH(
+            camera.GetPosition().x,
+            camera.GetPosition().y,
+            camera.GetViewportWidth(),
+            camera.GetViewportHeight());
+
+        m_scene.Render(batch, &visibleRect);
+    }
 
     if (m_showCollisionDebug)
         RenderCollisionDebug(batch);
