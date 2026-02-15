@@ -112,44 +112,37 @@ namespace KibakoEngine {
         KBK_ASSERT(m_isDrawing, "SpriteBatch2D::End without Begin");
         m_isDrawing = false;
 
-        // Drop any sprite commands missing a valid texture
-        m_commands.erase(
-            std::remove_if(
-                m_commands.begin(), m_commands.end(),
-                [](const DrawCommand& cmd) {
-                    return cmd.texture == nullptr || cmd.texture->GetSRV() == nullptr;
-                }),
-            m_commands.end()
-        );
-
-        // Drop any geometry commands that cannot be rendered
-        m_geometryCommands.erase(
-            std::remove_if(
-                m_geometryCommands.begin(), m_geometryCommands.end(),
-                [](const GeometryCommand& cmd) {
-                    return cmd.vertices == nullptr || cmd.indices == nullptr ||
-                        cmd.vertexCount == 0 || cmd.indexCount == 0 ||
-                        cmd.texture == nullptr || cmd.texture->GetSRV() == nullptr;
-                }),
-            m_geometryCommands.end()
-        );
-
-        if (m_commands.empty() && m_geometryCommands.empty())
-            return;
-
         // Merge sprite and geometry commands into a unified list
         using Unified = UnifiedCommand;
         m_unifiedCommands.clear();
         m_unifiedCommands.reserve(m_commands.size() + m_geometryCommands.size());
 
+        size_t totalVertices = 0;
+        size_t totalIndices = 0;
+
         for (size_t i = 0; i < m_commands.size(); ++i) {
             const auto& c = m_commands[i];
+            if (c.texture == nullptr || c.texture->GetSRV() == nullptr)
+                continue;
             m_unifiedCommands.push_back({ c.texture, c.layer, true, i });
+            totalVertices += 4;
+            totalIndices += 6;
         }
+
         for (size_t i = 0; i < m_geometryCommands.size(); ++i) {
             const auto& g = m_geometryCommands[i];
+            if (g.vertices == nullptr || g.indices == nullptr ||
+                g.vertexCount == 0 || g.indexCount == 0 ||
+                g.texture == nullptr || g.texture->GetSRV() == nullptr) {
+                continue;
+            }
             m_unifiedCommands.push_back({ g.texture, g.layer, false, i });
+            totalVertices += g.vertexCount;
+            totalIndices += g.indexCount;
         }
+
+        if (m_unifiedCommands.empty())
+            return;
 
         // Sort by layer then texture to maximize batching
         std::stable_sort(
@@ -182,21 +175,6 @@ namespace KibakoEngine {
                 return a.index < b.index;
             });
 
-        // Precompute the total vertex and index counts
-        size_t totalVertices = 0;
-        size_t totalIndices = 0;
-        for (const Unified& u : m_unifiedCommands) {
-            if (u.isSprite) {
-                totalVertices += 4;
-                totalIndices += 6;
-            }
-            else {
-                const auto& g = m_geometryCommands[u.index];
-                totalVertices += g.vertexCount;
-                totalIndices += g.indexCount;
-            }
-        }
-
         if (totalVertices == 0 || totalIndices == 0)
             return;
 
@@ -205,10 +183,8 @@ namespace KibakoEngine {
 
         UpdateVSConstants();
 
-        m_vertexScratch.clear();
         m_vertexScratch.resize(totalVertices);
 
-        m_indexScratch.clear();
         m_indexScratch.resize(totalIndices);
 
         // Build the final GPU buffers and draw ranges

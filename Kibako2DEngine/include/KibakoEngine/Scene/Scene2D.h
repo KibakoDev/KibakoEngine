@@ -109,10 +109,11 @@ namespace KibakoEngine {
         void ResolveAssets(AssetManager& assets);
 
     private:
-        void RebuildNameLookup();
+        void RemoveEntityAtSwapIndex(std::size_t index);
 
         EntityID m_nextID = 1;
         std::vector<Entity2D> m_entities;
+        std::unordered_map<EntityID, std::size_t> m_entityIndex;
 
         ComponentStore<SpriteRenderer2D>      m_sprites;
         ComponentStore<CollisionComponent2D> m_collisions;

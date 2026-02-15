@@ -8,7 +8,6 @@
 
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -17,13 +16,6 @@ namespace KibakoEngine {
     namespace
     {
         constexpr const char* kLogChannel = "Scene2D";
-
-        template <typename Container>
-        auto FindEntityIt(Container& entities, EntityID id)
-        {
-            return std::find_if(entities.begin(), entities.end(),
-                [id](const Entity2D& e) { return e.id == id; });
-        }
 
         std::string ReadAllText(const char* path)
         {
@@ -93,17 +85,21 @@ namespace KibakoEngine {
 
     Entity2D& Scene2D::CreateEntity()
     {
+        const std::size_t index = m_entities.size();
         Entity2D& e = m_entities.emplace_back();
         e.id = m_nextID++;
         e.active = true;
+        m_entityIndex.emplace(e.id, index);
         return e;
     }
 
     Entity2D& Scene2D::CreateEntityWithID(EntityID forcedId)
     {
+        const std::size_t index = m_entities.size();
         Entity2D& e = m_entities.emplace_back();
         e.id = forcedId;
         e.active = true;
+        m_entityIndex.emplace(e.id, index);
 
         if (forcedId >= m_nextID)
             m_nextID = forcedId + 1;
@@ -113,18 +109,27 @@ namespace KibakoEngine {
 
     void Scene2D::DestroyEntity(EntityID id)
     {
-        const auto it = FindEntityIt(m_entities, id);
-        if (it == m_entities.end())
+        const auto it = m_entityIndex.find(id);
+        if (it == m_entityIndex.end())
             return;
 
-        it->active = false;
+        const std::size_t index = it->second;
+        m_entityIndex.erase(it);
+
+        m_entities[index].active = false;
+
+        if (const NameComponent* n = m_names.TryGet(id); n && !n->name.empty()) {
+            const auto nameIt = m_nameLookup.find(n->name);
+            if (nameIt != m_nameLookup.end() && nameIt->second == id)
+                m_nameLookup.erase(nameIt);
+        }
 
         // Remove components for that entity (keeps stores coherent)
         m_sprites.Remove(id);
         m_collisions.Remove(id);
         m_names.Remove(id);
 
-        RebuildNameLookup();
+        RemoveEntityAtSwapIndex(index);
     }
 
     void Scene2D::Clear()
@@ -138,20 +143,25 @@ namespace KibakoEngine {
         m_circlePool.clear();
         m_aabbPool.clear();
         m_nameLookup.clear();
+        m_entityIndex.clear();
 
         m_nextID = 1;
     }
 
     Entity2D* Scene2D::FindEntity(EntityID id)
     {
-        const auto it = FindEntityIt(m_entities, id);
-        return it != m_entities.end() ? &(*it) : nullptr;
+        const auto it = m_entityIndex.find(id);
+        if (it == m_entityIndex.end())
+            return nullptr;
+        return &m_entities[it->second];
     }
 
     const Entity2D* Scene2D::FindEntity(EntityID id) const
     {
-        const auto it = FindEntityIt(m_entities, id);
-        return it != m_entities.end() ? &(*it) : nullptr;
+        const auto it = m_entityIndex.find(id);
+        if (it == m_entityIndex.end())
+            return nullptr;
+        return &m_entities[it->second];
     }
 
     Entity2D* Scene2D::FindByName(const std::string& name)
@@ -190,6 +200,13 @@ namespace KibakoEngine {
     NameComponent& Scene2D::AddName(EntityID id, const std::string& name)
     {
         NameComponent& n = m_names.Add(id);
+
+        if (!n.name.empty()) {
+            const auto old = m_nameLookup.find(n.name);
+            if (old != m_nameLookup.end() && old->second == id)
+                m_nameLookup.erase(old);
+        }
+
         n.name = name;
 
         if (!name.empty())
@@ -242,35 +259,28 @@ namespace KibakoEngine {
         KBK_UNUSED(dt);
     }
 
-    void Scene2D::RebuildNameLookup()
+    void Scene2D::RemoveEntityAtSwapIndex(std::size_t index)
     {
-        m_nameLookup.clear();
-        m_nameLookup.reserve(m_entities.size());
-
-        for (const auto& e : m_entities) {
-            if (!e.active)
-                continue;
-
-            const NameComponent* n = m_names.TryGet(e.id);
-            if (!n || n->name.empty())
-                continue;
-
-            m_nameLookup[n->name] = e.id;
+        const std::size_t last = m_entities.size() - 1;
+        if (index != last) {
+            m_entities[index] = std::move(m_entities[last]);
+            m_entityIndex[m_entities[index].id] = index;
         }
+        m_entities.pop_back();
     }
 
     void Scene2D::Render(SpriteBatch2D& batch) const
     {
-        for (const auto& e : m_entities) {
-            if (!e.active)
-                continue;
+        m_sprites.ForEach([&](EntityID id, const SpriteRenderer2D& spr) {
+            const Entity2D* e = FindEntity(id);
+            if (!e || !e->active)
+                return;
 
-            const auto* spr = m_sprites.TryGet(e.id);
-            if (!spr || !spr->texture || !spr->texture->IsValid())
-                continue;
+            if (!spr.texture || !spr.texture->IsValid())
+                return;
 
-            const RectF& local = spr->dst;
-            const Transform2D& t = e.transform;
+            const RectF& local = spr.dst;
+            const Transform2D& t = e->transform;
 
             const float w = local.w * t.scale.x;
             const float h = local.h * t.scale.y;
@@ -282,13 +292,13 @@ namespace KibakoEngine {
             dst.y = t.position.y - (h * 0.5f);
 
             batch.Push(
-                *spr->texture,
+                *spr.texture,
                 dst,
-                spr->src,
-                spr->color,
+                spr.src,
+                spr.color,
                 t.rotation,
-                spr->layer);
-        }
+                spr.layer);
+            });
     }
 
     // ------------------------------------------------------------------------
@@ -327,6 +337,11 @@ namespace KibakoEngine {
 
         const auto& entitiesJson = *itEntities;
         m_entities.reserve(entitiesJson.size());
+        m_entityIndex.reserve(entitiesJson.size());
+        m_sprites.Reserve(entitiesJson.size());
+        m_collisions.Reserve(entitiesJson.size());
+        m_names.Reserve(entitiesJson.size());
+        m_nameLookup.reserve(entitiesJson.size());
 
         for (const auto& eJson : entitiesJson)
         {
