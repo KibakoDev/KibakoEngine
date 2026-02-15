@@ -80,8 +80,6 @@ namespace KibakoEngine {
 
     void SpriteBatch2D::ClearFrameData()
     {
-        m_indexScratch.clear();
-        m_vertexScratch.clear();
         m_commands.clear();
         m_geometryCommands.clear();
         m_unifiedCommands.clear();
@@ -144,10 +142,7 @@ namespace KibakoEngine {
         if (m_unifiedCommands.empty())
             return;
 
-        // Sort by layer then texture to maximize batching
-        std::stable_sort(
-            m_unifiedCommands.begin(), m_unifiedCommands.end(),
-            [this](const Unified& a, const Unified& b) {
+        const auto cmdLess = [this](const Unified& a, const Unified& b) {
                 if (a.layer != b.layer)
                     return a.layer < b.layer;
                 const auto srvA = a.texture->GetSRV();
@@ -173,7 +168,13 @@ namespace KibakoEngine {
                 }
 
                 return a.index < b.index;
-            });
+            };
+
+        // Sorting can become expensive for very large sprite lists.
+        // Skip the sort when submissions are already in the optimal order.
+        if (!std::is_sorted(m_unifiedCommands.begin(), m_unifiedCommands.end(), cmdLess)) {
+            std::stable_sort(m_unifiedCommands.begin(), m_unifiedCommands.end(), cmdLess);
+        }
 
         if (totalVertices == 0 || totalIndices == 0)
             return;
@@ -183,9 +184,23 @@ namespace KibakoEngine {
 
         UpdateVSConstants();
 
-        m_vertexScratch.resize(totalVertices);
+        D3D11_MAPPED_SUBRESOURCE mappedVB{};
+        HRESULT hr = m_context->Map(m_vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVB);
+        if (FAILED(hr)) {
+            KbkError(kLogChannel, "Vertex buffer map failed: 0x%08X", static_cast<unsigned>(hr));
+            return;
+        }
 
-        m_indexScratch.resize(totalIndices);
+        D3D11_MAPPED_SUBRESOURCE mappedIB{};
+        hr = m_context->Map(m_indexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedIB);
+        if (FAILED(hr)) {
+            m_context->Unmap(m_vertexBuffer.Get(), 0);
+            KbkError(kLogChannel, "Index buffer map failed: 0x%08X", static_cast<unsigned>(hr));
+            return;
+        }
+
+        Vertex* vertexOut = static_cast<Vertex*>(mappedVB.pData);
+        std::uint32_t* indexOut = static_cast<std::uint32_t*>(mappedIB.pData);
 
         // Build the final GPU buffers and draw ranges
         m_drawRanges.clear();
@@ -234,14 +249,14 @@ namespace KibakoEngine {
 
                 const XMFLOAT4 color = { cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a };
 
-                Vertex* v = m_vertexScratch.data() + currentVertexBase;
+                Vertex* v = vertexOut + currentVertexBase;
 
                 v[0] = Vertex{ { corners[0].x, corners[0].y, 0.0f }, { u0, v0 }, color };
                 v[1] = Vertex{ { corners[1].x, corners[1].y, 0.0f }, { u1, v0 }, color };
                 v[2] = Vertex{ { corners[2].x, corners[2].y, 0.0f }, { u1, v1 }, color };
                 v[3] = Vertex{ { corners[3].x, corners[3].y, 0.0f }, { u0, v1 }, color };
 
-                std::uint32_t* idx = m_indexScratch.data() + currentIndexBase;
+                std::uint32_t* idx = indexOut + currentIndexBase;
                 const std::uint32_t base = static_cast<std::uint32_t>(currentVertexBase);
 
                 idx[0] = base;
@@ -256,7 +271,7 @@ namespace KibakoEngine {
             }
             else {
                 const GeometryCommand& geo = m_geometryCommands[u.index];
-                Vertex* outVertices = m_vertexScratch.data() + currentVertexBase;
+                Vertex* outVertices = vertexOut + currentVertexBase;
 
                 if (geo.hasTranslation) {
                     for (size_t i = 0; i < geo.vertexCount; ++i) {
@@ -274,7 +289,7 @@ namespace KibakoEngine {
                 }
 
                 // Copy indices while offsetting into the combined vertex buffer
-                std::uint32_t* idxOut = m_indexScratch.data() + currentIndexBase;
+                std::uint32_t* idxOut = indexOut + currentIndexBase;
                 const std::uint32_t base = static_cast<std::uint32_t>(currentVertexBase);
                 for (size_t i = 0; i < geo.indexCount; ++i) {
                     idxOut[i] = base + geo.indices[i];
@@ -334,23 +349,7 @@ namespace KibakoEngine {
         if (haveRange)
             m_drawRanges.push_back(currentRange);
 
-        // Upload the combined buffers to the GPU
-        D3D11_MAPPED_SUBRESOURCE mapped{};
-
-        HRESULT hr = m_context->Map(m_vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-        if (FAILED(hr)) {
-            KbkError(kLogChannel, "Vertex buffer map failed: 0x%08X", static_cast<unsigned>(hr));
-            return;
-        }
-        std::memcpy(mapped.pData, m_vertexScratch.data(), m_vertexScratch.size() * sizeof(Vertex));
         m_context->Unmap(m_vertexBuffer.Get(), 0);
-
-        hr = m_context->Map(m_indexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-        if (FAILED(hr)) {
-            KbkError(kLogChannel, "Index buffer map failed: 0x%08X", static_cast<unsigned>(hr));
-            return;
-        }
-        std::memcpy(mapped.pData, m_indexScratch.data(), m_indexScratch.size() * sizeof(std::uint32_t));
         m_context->Unmap(m_indexBuffer.Get(), 0);
 
         // Set the pipeline state used for sprite rendering
