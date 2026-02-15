@@ -17,6 +17,13 @@ namespace KibakoEngine {
     class ComponentStore
     {
     public:
+        void Reserve(std::size_t count)
+        {
+            m_dense.reserve(count);
+            m_denseEntities.reserve(count);
+            m_sparse.reserve(count);
+        }
+
         bool Has(EntityID id) const
         {
             return m_sparse.find(id) != m_sparse.end();
