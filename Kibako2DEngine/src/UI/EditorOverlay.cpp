@@ -18,7 +18,6 @@
 #include <system_error>
 #include <vector>
 #include <functional>
-#include <unordered_set>
 #include <sstream>
 #include <iomanip>
 
@@ -75,41 +74,15 @@ namespace KibakoEngine {
         static std::vector<std::filesystem::path> BuildCandidates(const Application& app)
         {
             std::vector<std::filesystem::path> candidates;
-            candidates.reserve(48);
+            candidates.reserve(12);
 
-            std::unordered_set<std::string> visitedRoots;
-
-            auto appendFromRootAndParents = [&](const std::filesystem::path& root) {
-                if (root.empty())
-                    return;
-
-                std::filesystem::path cursor = root;
-                for (int i = 0; i < 8; ++i) {
-                    if (cursor.empty())
-                        break;
-
-                    const auto inserted = visitedRoots.insert(cursor.generic_string()).second;
-                    if (inserted)
-                        AppendCandidatesFromRoot(cursor, candidates);
-
-                    if (!cursor.has_parent_path())
-                        break;
-
-                    const auto parent = cursor.parent_path();
-                    if (parent == cursor)
-                        break;
-
-                    cursor = parent;
-                }
-                };
-
-            appendFromRootAndParents(app.ContentRoot());
-            appendFromRootAndParents(app.ExecutableDir());
+            AppendCandidatesFromRoot(app.ContentRoot(), candidates);
+            AppendCandidatesFromRoot(app.ExecutableDir(), candidates);
 
             std::error_code ec;
             const auto cwd = std::filesystem::current_path(ec);
             if (!ec)
-                appendFromRootAndParents(cwd);
+                AppendCandidatesFromRoot(cwd, candidates);
 
             return candidates;
         }
