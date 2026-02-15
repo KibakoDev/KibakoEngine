@@ -269,8 +269,15 @@ namespace KibakoEngine {
         m_entities.pop_back();
     }
 
-    void Scene2D::Render(SpriteBatch2D& batch) const
+    void Scene2D::Render(SpriteBatch2D& batch, const RectF* visibleRect) const
     {
+        auto intersects = [](const RectF& a, const RectF& b) {
+            return a.x < (b.x + b.w) &&
+                (a.x + a.w) > b.x &&
+                a.y < (b.y + b.h) &&
+                (a.y + a.h) > b.y;
+            };
+
         m_sprites.ForEach([&](EntityID id, const SpriteRenderer2D& spr) {
             const Entity2D* e = FindEntity(id);
             if (!e || !e->active)
@@ -290,6 +297,11 @@ namespace KibakoEngine {
             dst.h = h;
             dst.x = t.position.x - (w * 0.5f);
             dst.y = t.position.y - (h * 0.5f);
+
+            if (visibleRect && !intersects(dst, *visibleRect)) {
+                batch.RecordSpriteCulled();
+                return;
+            }
 
             batch.Push(
                 *spr.texture,

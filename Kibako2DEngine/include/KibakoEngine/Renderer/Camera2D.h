@@ -13,6 +13,8 @@ namespace KibakoEngine {
 
         [[nodiscard]] DirectX::XMFLOAT2 GetPosition() const { return { m_positionX, m_positionY }; }
         [[nodiscard]] float             GetRotation() const { return m_rotation; }
+        [[nodiscard]] float             GetViewportWidth() const { return m_viewWidth; }
+        [[nodiscard]] float             GetViewportHeight() const { return m_viewHeight; }
         [[nodiscard]] DirectX::XMFLOAT4X4 GetViewProjection() const { return m_viewProj; }
         [[nodiscard]] const DirectX::XMFLOAT4X4& GetViewProjectionT() const { return m_viewProjT; }
 
