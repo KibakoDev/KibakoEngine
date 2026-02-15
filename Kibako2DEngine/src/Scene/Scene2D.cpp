@@ -278,16 +278,16 @@ namespace KibakoEngine {
                 (a.y + a.h) > b.y;
             };
 
-        m_sprites.ForEach([&](EntityID id, const SpriteRenderer2D& spr) {
-            const Entity2D* e = FindEntity(id);
-            if (!e || !e->active)
-                return;
+        for (const Entity2D& entity : m_entities) {
+            if (!entity.active)
+                continue;
 
-            if (!spr.texture || !spr.texture->IsValid())
-                return;
+            const SpriteRenderer2D* spr = m_sprites.TryGet(entity.id);
+            if (!spr || !spr->texture || !spr->texture->IsValid())
+                continue;
 
-            const RectF& local = spr.dst;
-            const Transform2D& t = e->transform;
+            const RectF& local = spr->dst;
+            const Transform2D& t = entity.transform;
 
             const float w = local.w * t.scale.x;
             const float h = local.h * t.scale.y;
@@ -300,17 +300,17 @@ namespace KibakoEngine {
 
             if (visibleRect && !intersects(dst, *visibleRect)) {
                 batch.RecordSpriteCulled();
-                return;
+                continue;
             }
 
             batch.Push(
-                *spr.texture,
+                *spr->texture,
                 dst,
-                spr.src,
-                spr.color,
+                spr->src,
+                spr->color,
                 t.rotation,
-                spr.layer);
-            });
+                spr->layer);
+        }
     }
 
     // ------------------------------------------------------------------------

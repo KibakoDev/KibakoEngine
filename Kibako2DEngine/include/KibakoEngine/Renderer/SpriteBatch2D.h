@@ -152,9 +152,6 @@ namespace KibakoEngine {
         std::vector<UnifiedCommand>  m_unifiedCommands;
         std::vector<DrawRange>       m_drawRanges;
 
-        // CPU-side buffers used to build the final vertex and index buffers
-        std::vector<Vertex>          m_vertexScratch;
-        std::vector<std::uint32_t>   m_indexScratch;
         size_t m_spriteReserveHint = 256;
         size_t m_geometryReserveHint = 256;
 

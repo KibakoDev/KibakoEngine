@@ -7,11 +7,9 @@
 #include "KibakoEngine/Core/Debug.h"
 
 #if !defined(KBK_ENABLE_PROFILING)
-#    if KBK_DEBUG_BUILD
-#        define KBK_ENABLE_PROFILING 1
-#    else
-#        define KBK_ENABLE_PROFILING 0
-#    endif
+// Keep instrumentation available by default in all build types;
+// compile-time disable is still possible by defining KBK_ENABLE_PROFILING=0.
+#    define KBK_ENABLE_PROFILING 1
 #endif
 
 namespace KibakoEngine::Profiler {
