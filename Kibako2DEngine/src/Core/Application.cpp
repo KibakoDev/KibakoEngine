@@ -34,7 +34,7 @@ namespace KibakoEngine {
                 (reason && reason[0] != '\0') ? reason : "");
         }
 
-        std::filesystem::path GetExecutableDirSDL()
+        static std::filesystem::path GetExecutableDirSDL()
         {
             std::filesystem::path exeDir;
             char* basePath = SDL_GetBasePath();
@@ -45,15 +45,17 @@ namespace KibakoEngine {
             return exeDir;
         }
 
-        bool ExistsNoThrow(const std::filesystem::path& p)
+        static bool ExistsNoThrow(const std::filesystem::path& p)
         {
             std::error_code ec;
             return std::filesystem::exists(p, ec) && !ec;
         }
 
-        // Finds a root that contains either:
-        // - <root>/Kibako2DEngine/assets/ui/editor.rml  (engine content)
-        // - <root>/assets/ui/editor.rml                (game content)
+        struct RootHits {
+            std::filesystem::path gameRoot;
+            std::filesystem::path engineRoot;
+        };
+
         std::filesystem::path FindContentRoot(const std::filesystem::path& start)
         {
             if (start.empty())
@@ -62,7 +64,7 @@ namespace KibakoEngine {
             std::filesystem::path cursor = start;
             for (int i = 0; i < 8; ++i) {
 
-                // Engine-first (your current setup)
+                // Engine-first
                 if (ExistsNoThrow(cursor / "Kibako2DEngine" / "assets" / "ui" / "editor.rml"))
                     return cursor / "Kibako2DEngine";
 
@@ -203,8 +205,6 @@ namespace KibakoEngine {
 
         if (!CreateWindowSDL(width, height, title))
             return false;
-
-        SDL_StartTextInput();
 
         ResolvePaths();
 

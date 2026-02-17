@@ -60,6 +60,9 @@ namespace KibakoEngine {
 
         [[nodiscard]] const std::filesystem::path& ExecutableDir() const { return m_executableDir; }
         [[nodiscard]] const std::filesystem::path& ContentRoot()   const { return m_contentRoot; }
+        [[nodiscard]] const std::filesystem::path& EngineRoot()    const { return m_engineRoot; }
+
+
 
 #if KBK_DEBUG_BUILD
         // Provide the current scene to the engine overlay (stats, hierarchy later, etc.)
@@ -103,6 +106,7 @@ namespace KibakoEngine {
 
         std::filesystem::path m_executableDir;
         std::filesystem::path m_contentRoot;
+        std::filesystem::path m_engineRoot;
 
 #if KBK_DEBUG_BUILD
         EditorOverlay m_editorOverlay;
