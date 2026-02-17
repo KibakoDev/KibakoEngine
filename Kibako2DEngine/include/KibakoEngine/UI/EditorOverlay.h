@@ -17,7 +17,6 @@ namespace KibakoEngine {
     class Application;
     class Scene2D;
 
-    // Engine Debug Editor Overlay (Debug builds only)
     class EditorOverlay
     {
     public:
@@ -29,7 +28,6 @@ namespace KibakoEngine {
         void SetEnabled(bool enabled);
         bool IsEnabled() const { return m_enabled; }
 
-        // Optional hooks for UI buttons
         void SetOnApply(std::function<void()> fn) { m_onApply = std::move(fn); }
 
         void Update(float dt);
@@ -49,15 +47,12 @@ namespace KibakoEngine {
         std::function<void()> m_onApply;
 
         float m_statsAccum = 0.0f;
-        float m_statsPeriod = 0.10f; // 10x/sec
+        float m_statsPeriod = 0.10f;
         bool  m_enabled = true;
     };
 
 } // namespace KibakoEngine
 
 #else
-
-// Release build: compiled out
 namespace KibakoEngine { class EditorOverlay {}; }
-
 #endif // KBK_DEBUG_BUILD

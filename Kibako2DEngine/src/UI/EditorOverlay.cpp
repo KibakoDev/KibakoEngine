@@ -16,6 +16,7 @@
 #include <vector>
 #include <functional>
 
+#include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/Event.h>
@@ -26,20 +27,19 @@ namespace KibakoEngine {
     namespace {
         constexpr const char* kLogChannel = "Kibako.EditorUI";
 
-        // RmlUI prefers forward slashes even on Windows.
-        static std::string ToRmlPathString(const std::filesystem::path& p)
+        std::string ToRmlPathString(const std::filesystem::path& p)
         {
             return p.generic_string();
         }
 
-        static bool ExistsNoThrow(const std::filesystem::path& p)
+        bool ExistsNoThrow(const std::filesystem::path& p)
         {
             std::error_code ec;
             const bool ok = std::filesystem::exists(p, ec);
             return ok && !ec;
         }
 
-        static bool TryLoad(RmlUIContext& ui, const std::filesystem::path& p, Rml::ElementDocument*& outDoc)
+        bool TryLoad(RmlUIContext& ui, const std::filesystem::path& p, Rml::ElementDocument*& outDoc)
         {
             outDoc = nullptr;
             const std::string s = ToRmlPathString(p);
@@ -50,24 +50,24 @@ namespace KibakoEngine {
             return false;
         }
 
-        static void AppendCandidatesFromRoot(const std::filesystem::path& root,
-            std::vector<std::filesystem::path>& out)
+        void AppendCandidatesFromRoot(const std::filesystem::path& root, std::vector<std::filesystem::path>& out)
         {
             if (root.empty())
                 return;
 
-            // game-style
             out.emplace_back(root / "assets" / "ui" / "editor.rml");
-
-            // engine-style root containing Kibako2DEngine
-            out.emplace_back(root / "Kibako2DEngine" / "assets" / "ui" / "editor.rml");
         }
 
-        static std::vector<std::filesystem::path> BuildCandidates(const Application& app)
+        std::vector<std::filesystem::path> BuildCandidates(const Application& app)
         {
             std::vector<std::filesystem::path> candidates;
-            candidates.reserve(12);
+            candidates.reserve(16);
 
+            // Primary: engine-owned editor UI (stable path)
+            if (!app.EngineRoot().empty())
+                candidates.emplace_back(app.EngineRoot() / "assets" / "ui" / "editor.rml");
+
+            // Optional fallbacks (dev convenience)
             AppendCandidatesFromRoot(app.ContentRoot(), candidates);
             AppendCandidatesFromRoot(app.ExecutableDir(), candidates);
 
@@ -79,7 +79,6 @@ namespace KibakoEngine {
             return candidates;
         }
 
-        // Small helper listener (self-deletes on detach)
         class ButtonListener final : public Rml::EventListener
         {
         public:
@@ -201,7 +200,6 @@ namespace KibakoEngine {
         if (auto* apply = m_doc->GetElementById("btn_apply")) {
             apply->AddEventListener("click",
                 new ButtonListener([this](Rml::Event&) {
-                    // For now, delegate to user/game hook.
                     if (m_onApply) m_onApply();
                     })
             );

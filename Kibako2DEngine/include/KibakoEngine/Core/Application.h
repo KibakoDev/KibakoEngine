@@ -58,14 +58,16 @@ namespace KibakoEngine {
         [[nodiscard]] RmlUIContext& UI() { return m_ui; }
         [[nodiscard]] const RmlUIContext& UI() const { return m_ui; }
 
+        // Executable dir (SDL base path, fallback to CWD).
         [[nodiscard]] const std::filesystem::path& ExecutableDir() const { return m_executableDir; }
-        [[nodiscard]] const std::filesystem::path& ContentRoot()   const { return m_contentRoot; }
-        [[nodiscard]] const std::filesystem::path& EngineRoot()    const { return m_engineRoot; }
 
+        // Game content root (where "assets/" is located, if any).
+        [[nodiscard]] const std::filesystem::path& ContentRoot() const { return m_contentRoot; }
 
+        // Engine root = ".../Kibako2DEngine" folder (contains assets/ui/editor.rml).
+        [[nodiscard]] const std::filesystem::path& EngineRoot() const { return m_engineRoot; }
 
 #if KBK_DEBUG_BUILD
-        // Provide the current scene to the engine overlay (stats, hierarchy later, etc.)
         void SetEditorScene(Scene2D* scene);
         [[nodiscard]] EditorOverlay& EditorUI() { return m_editorOverlay; }
         [[nodiscard]] const EditorOverlay& EditorUI() const { return m_editorOverlay; }
@@ -105,8 +107,8 @@ namespace KibakoEngine {
         RmlUIContext  m_ui;
 
         std::filesystem::path m_executableDir;
-        std::filesystem::path m_contentRoot;
-        std::filesystem::path m_engineRoot;
+        std::filesystem::path m_contentRoot; // game root (assets/)
+        std::filesystem::path m_engineRoot;  // engine root (Kibako2DEngine/)
 
 #if KBK_DEBUG_BUILD
         EditorOverlay m_editorOverlay;

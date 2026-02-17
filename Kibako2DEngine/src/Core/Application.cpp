@@ -20,10 +20,9 @@ namespace KibakoEngine {
     namespace {
         constexpr const char* kLogChannel = "App";
 
-        // Fixed timestep (simulation)
         constexpr double kFixedStep = 1.0 / 60.0; // 60 Hz
         constexpr double kMaxFrameDt = 0.25;       // clamp raw dt (250ms)
-        constexpr int    kMaxSubSteps = 8;          // anti spiral-of-death
+        constexpr int    kMaxSubSteps = 8;         // anti spiral-of-death
 
         void AnnounceBreakpointStop()
         {
@@ -34,7 +33,7 @@ namespace KibakoEngine {
                 (reason && reason[0] != '\0') ? reason : "");
         }
 
-        static std::filesystem::path GetExecutableDirSDL()
+        std::filesystem::path GetExecutableDirSDL()
         {
             std::filesystem::path exeDir;
             char* basePath = SDL_GetBasePath();
@@ -45,30 +44,68 @@ namespace KibakoEngine {
             return exeDir;
         }
 
-        static bool ExistsNoThrow(const std::filesystem::path& p)
+        bool ExistsNoThrow(const std::filesystem::path& p)
         {
             std::error_code ec;
             return std::filesystem::exists(p, ec) && !ec;
         }
 
-        struct RootHits {
-            std::filesystem::path gameRoot;
-            std::filesystem::path engineRoot;
-        };
+        bool IsSamePathNoThrow(const std::filesystem::path& a, const std::filesystem::path& b)
+        {
+            std::error_code ecA, ecB;
+            const auto ca = std::filesystem::weakly_canonical(a, ecA);
+            const auto cb = std::filesystem::weakly_canonical(b, ecB);
+            if (ecA || ecB) return a == b;
+            return ca == cb;
+        }
 
-        std::filesystem::path FindContentRoot(const std::filesystem::path& start)
+        std::filesystem::path FindGameRoot(const std::filesystem::path& start)
         {
             if (start.empty())
                 return {};
 
             std::filesystem::path cursor = start;
-            for (int i = 0; i < 8; ++i) {
+            for (int i = 0; i < 10; ++i) {
 
-                // Engine-first
-                if (ExistsNoThrow(cursor / "Kibako2DEngine" / "assets" / "ui" / "editor.rml"))
-                    return cursor / "Kibako2DEngine";
+                if (ExistsNoThrow(cursor / "assets"))
+                    return cursor;
 
-                // Game content
+                if (!cursor.has_parent_path())
+                    break;
+
+                const auto parent = cursor.parent_path();
+                if (IsSamePathNoThrow(parent, cursor))
+                    break;
+
+                cursor = parent;
+            }
+            return {};
+        }
+
+        // EngineRoot MUST be ".../Kibako2DEngine" (folder containing assets/ui/editor.rml).
+        std::filesystem::path FindEngineRoot(const std::filesystem::path& start)
+        {
+            if (start.empty())
+                return {};
+
+            std::filesystem::path cursor = start;
+            for (int i = 0; i < 12; ++i) {
+
+                // Case A: cursor is a root containing "Kibako2DEngine/"
+                {
+                    const auto candidate = cursor / "Kibako2DEngine";
+                    if (ExistsNoThrow(candidate / "assets" / "ui" / "editor.rml"))
+                        return candidate;
+                }
+
+                // Case B: cursor is a root containing "KibakoEngine/Kibako2DEngine/"
+                {
+                    const auto candidate = cursor / "KibakoEngine" / "Kibako2DEngine";
+                    if (ExistsNoThrow(candidate / "assets" / "ui" / "editor.rml"))
+                        return candidate;
+                }
+
+                // Case C: cursor itself IS Kibako2DEngine
                 if (ExistsNoThrow(cursor / "assets" / "ui" / "editor.rml"))
                     return cursor;
 
@@ -76,7 +113,7 @@ namespace KibakoEngine {
                     break;
 
                 const auto parent = cursor.parent_path();
-                if (parent == cursor)
+                if (IsSamePathNoThrow(parent, cursor))
                     break;
 
                 cursor = parent;
@@ -134,6 +171,7 @@ namespace KibakoEngine {
             SDL_DestroyWindow(m_window);
             m_window = nullptr;
         }
+
         SDL_StopTextInput();
         SDL_Quit();
 
@@ -171,24 +209,45 @@ namespace KibakoEngine {
 
         if (m_executableDir.empty()) {
             std::error_code ec;
-            auto cwd = std::filesystem::current_path(ec);
+            const auto cwd = std::filesystem::current_path(ec);
             if (!ec)
                 m_executableDir = cwd;
         }
 
-        // Content root
-        m_contentRoot = FindContentRoot(m_executableDir);
+        // Engine root (Kibako2DEngine/)
+        m_engineRoot = FindEngineRoot(m_executableDir);
+
+        if (m_engineRoot.empty()) {
+            std::error_code ec;
+            const auto cwd = std::filesystem::current_path(ec);
+            if (!ec)
+                m_engineRoot = FindEngineRoot(cwd);
+        }
+
+        if (m_engineRoot.empty()) {
+            // fallback: still keep something valid to avoid empty path surprises
+            m_engineRoot = m_executableDir;
+            KbkWarn(kLogChannel,
+                "Engine root not found (expected Kibako2DEngine/assets/ui/editor.rml). Using fallback: %s",
+                m_engineRoot.string().c_str());
+        }
+        else {
+            KbkLog(kLogChannel, "Engine root resolved: %s", m_engineRoot.string().c_str());
+        }
+
+        // Game content root (assets/)
+        m_contentRoot = FindGameRoot(m_executableDir);
 
         if (m_contentRoot.empty()) {
             std::error_code ec;
-            auto cwd = std::filesystem::current_path(ec);
+            const auto cwd = std::filesystem::current_path(ec);
             if (!ec)
-                m_contentRoot = FindContentRoot(cwd);
+                m_contentRoot = FindGameRoot(cwd);
         }
 
         if (m_contentRoot.empty()) {
             m_contentRoot = m_executableDir;
-            KbkWarn(kLogChannel, "Content root not found. Using fallback: %s",
+            KbkWarn(kLogChannel, "Content root not found (assets/). Using fallback: %s",
                 m_contentRoot.string().c_str());
         }
         else {
@@ -205,6 +264,8 @@ namespace KibakoEngine {
 
         if (!CreateWindowSDL(width, height, title))
             return false;
+
+        SDL_StartTextInput();
 
         ResolvePaths();
 
@@ -239,7 +300,6 @@ namespace KibakoEngine {
         }
 
 #if KBK_DEBUG_BUILD
-        // IMPORTANT: init overlay AFTER RmlUIContext is initialized.
         m_editorOverlay.Init(*this);
 #endif
 
