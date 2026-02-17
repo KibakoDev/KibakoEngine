@@ -9,6 +9,7 @@
 
 #include <DirectXMath.h>
 
+#include "KibakoEngine/Core/Debug.h"
 #include "KibakoEngine/Renderer/SpriteTypes.h"
 #include "KibakoEngine/Renderer/Texture2D.h"
 #include "KibakoEngine/Collision/Collision2D.h"
@@ -104,6 +105,8 @@ namespace KibakoEngine {
 
         void Update(float dt);
         void Render(SpriteBatch2D& batch, const RectF* visibleRect = nullptr) const;
+        void SetCollisionDebugEnabled(bool enabled);
+        [[nodiscard]] bool IsCollisionDebugEnabled() const;
 
         [[nodiscard]] bool LoadFromFile(const char* path, AssetManager& assets);
         void ResolveAssets(AssetManager& assets);
@@ -122,6 +125,10 @@ namespace KibakoEngine {
         std::deque<CircleCollider2D> m_circlePool;
         std::deque<AABBCollider2D>   m_aabbPool;
         std::unordered_map<std::string, EntityID> m_nameLookup;
+
+#if KBK_DEBUG_BUILD
+        bool m_collisionDebugEnabled = false;
+#endif
     };
 
 } // namespace KibakoEngine

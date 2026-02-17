@@ -26,20 +26,18 @@ namespace KibakoEngine {
 
         bool Has(EntityID id) const
         {
-            return m_sparse.find(id) != m_sparse.end();
+            return m_sparse.contains(id);
         }
 
         // Adds component if missing, returns existing otherwise.
         T& Add(EntityID id, const T& value = T{})
         {
-            auto it = m_sparse.find(id);
-            if (it != m_sparse.end())
+            const auto [it, inserted] = m_sparse.try_emplace(id, m_dense.size());
+            if (!inserted)
                 return m_dense[it->second];
 
-            const std::size_t index = m_dense.size();
             m_dense.push_back(value);
             m_denseEntities.push_back(id);
-            m_sparse.emplace(id, index);
             return m_dense.back();
         }
 

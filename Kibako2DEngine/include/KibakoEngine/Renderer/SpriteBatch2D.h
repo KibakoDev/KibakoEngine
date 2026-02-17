@@ -85,8 +85,8 @@ namespace KibakoEngine {
         // Raw geometry command used by UI / Rml
         struct GeometryCommand {
             const Texture2D* texture = nullptr;
-            const Vertex*            vertices = nullptr;
-            const std::uint32_t*     indices = nullptr;
+            const Vertex* vertices = nullptr;
+            const std::uint32_t* indices = nullptr;
             size_t                   vertexCount = 0;
             size_t                   indexCount = 0;
             std::vector<Vertex>      ownedVertices;
@@ -104,7 +104,7 @@ namespace KibakoEngine {
 
         // Final draw range consumed by DrawIndexed
         struct DrawRange {
-            const Texture2D* texture = nullptr;
+            ID3D11ShaderResourceView* srv = nullptr;
             int              layer = 0;
             std::uint32_t    firstIndex = 0;
             std::uint32_t    indexCount = 0;
@@ -114,6 +114,7 @@ namespace KibakoEngine {
 
         struct UnifiedCommand {
             const Texture2D* texture = nullptr;
+            ID3D11ShaderResourceView* srv = nullptr;
             int              layer = 0;
             bool             isSprite = true;
             size_t           index = 0;

@@ -122,7 +122,7 @@ namespace KibakoEngine {
             const auto& c = m_commands[i];
             if (c.texture == nullptr || c.texture->GetSRV() == nullptr)
                 continue;
-            m_unifiedCommands.push_back({ c.texture, c.layer, true, i });
+            m_unifiedCommands.push_back({ c.texture, c.texture->GetSRV(), c.layer, true, i });
             totalVertices += 4;
             totalIndices += 6;
         }
@@ -134,7 +134,7 @@ namespace KibakoEngine {
                 g.texture == nullptr || g.texture->GetSRV() == nullptr) {
                 continue;
             }
-            m_unifiedCommands.push_back({ g.texture, g.layer, false, i });
+            m_unifiedCommands.push_back({ g.texture, g.texture->GetSRV(), g.layer, false, i });
             totalVertices += g.vertexCount;
             totalIndices += g.indexCount;
         }
@@ -143,31 +143,29 @@ namespace KibakoEngine {
             return;
 
         const auto cmdLess = [this](const Unified& a, const Unified& b) {
-                if (a.layer != b.layer)
-                    return a.layer < b.layer;
-                const auto srvA = a.texture->GetSRV();
-                const auto srvB = b.texture->GetSRV();
-                if (srvA != srvB)
-                    return srvA < srvB;
+            if (a.layer != b.layer)
+                return a.layer < b.layer;
+            if (a.srv != b.srv)
+                return a.srv < b.srv;
 
-                if (a.isSprite != b.isSprite)
-                    return a.isSprite;
+            if (a.isSprite != b.isSprite)
+                return a.isSprite;
 
-                if (!a.isSprite) {
-                    const auto& ga = m_geometryCommands[a.index];
-                    const auto& gb = m_geometryCommands[b.index];
-                    if (ga.hasClipRect != gb.hasClipRect)
-                        return !ga.hasClipRect;
+            if (!a.isSprite) {
+                const auto& ga = m_geometryCommands[a.index];
+                const auto& gb = m_geometryCommands[b.index];
+                if (ga.hasClipRect != gb.hasClipRect)
+                    return !ga.hasClipRect;
 
-                    if (ga.hasClipRect) {
-                        if (ga.clipRect.x != gb.clipRect.x) return ga.clipRect.x < gb.clipRect.x;
-                        if (ga.clipRect.y != gb.clipRect.y) return ga.clipRect.y < gb.clipRect.y;
-                        if (ga.clipRect.w != gb.clipRect.w) return ga.clipRect.w < gb.clipRect.w;
-                        if (ga.clipRect.h != gb.clipRect.h) return ga.clipRect.h < gb.clipRect.h;
-                    }
+                if (ga.hasClipRect) {
+                    if (ga.clipRect.x != gb.clipRect.x) return ga.clipRect.x < gb.clipRect.x;
+                    if (ga.clipRect.y != gb.clipRect.y) return ga.clipRect.y < gb.clipRect.y;
+                    if (ga.clipRect.w != gb.clipRect.w) return ga.clipRect.w < gb.clipRect.w;
+                    if (ga.clipRect.h != gb.clipRect.h) return ga.clipRect.h < gb.clipRect.h;
                 }
+            }
 
-                return a.index < b.index;
+            return a.index < b.index;
             };
 
         // Sorting can become expensive for very large sprite lists.
@@ -318,26 +316,26 @@ namespace KibakoEngine {
             // Merge contiguous commands that share layer, texture and scissor state
             if (!haveRange) {
                 haveRange = true;
-                currentRange.texture = u.texture;
+                currentRange.srv = u.srv;
                 currentRange.layer = u.layer;
                 currentRange.firstIndex = cmdFirstIndex;
                 currentRange.indexCount = cmdIndexCount;
                 currentRange.useScissor = cmdUseScissor;
                 currentRange.scissorRect = cmdScissor;
             }
-            else if (u.texture == currentRange.texture &&
-                     u.layer == currentRange.layer &&
-                     cmdUseScissor == currentRange.useScissor &&
-                     (!cmdUseScissor || (
-                        cmdScissor.left == currentRange.scissorRect.left &&
-                        cmdScissor.top == currentRange.scissorRect.top &&
-                        cmdScissor.right == currentRange.scissorRect.right &&
-                        cmdScissor.bottom == currentRange.scissorRect.bottom))) {
+            else if (u.srv == currentRange.srv &&
+                u.layer == currentRange.layer &&
+                cmdUseScissor == currentRange.useScissor &&
+                (!cmdUseScissor || (
+                    cmdScissor.left == currentRange.scissorRect.left &&
+                    cmdScissor.top == currentRange.scissorRect.top &&
+                    cmdScissor.right == currentRange.scissorRect.right &&
+                    cmdScissor.bottom == currentRange.scissorRect.bottom))) {
                 currentRange.indexCount += cmdIndexCount;
             }
             else {
                 m_drawRanges.push_back(currentRange);
-                currentRange.texture = u.texture;
+                currentRange.srv = u.srv;
                 currentRange.layer = u.layer;
                 currentRange.firstIndex = cmdFirstIndex;
                 currentRange.indexCount = cmdIndexCount;
@@ -394,9 +392,7 @@ namespace KibakoEngine {
                 }
             }
 
-            ID3D11ShaderResourceView* srv =
-                range.texture ? range.texture->GetSRV()
-                : (m_defaultWhite.IsValid() ? m_defaultWhite.GetSRV() : nullptr);
+            ID3D11ShaderResourceView* srv = range.srv;
 
             if (srv != boundSrv) {
                 m_context->PSSetShaderResources(0, 1, &srv);

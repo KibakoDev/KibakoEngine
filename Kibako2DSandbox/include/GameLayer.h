@@ -29,7 +29,6 @@ public:
 
 private:
     void FixedSimStep(float fixedDt);
-    void RenderCollisionDebug(KibakoEngine::SpriteBatch2D& batch);
 
 private:
     KibakoEngine::Application& m_app;
@@ -39,7 +38,6 @@ private:
     std::uint32_t m_entityRight = 0;
 
     bool  m_showCollisionDebug = false;
-    bool  m_lastCollision = false;
 
     // Sim time should advance in fixed step
     float m_simTime = 0.0f;

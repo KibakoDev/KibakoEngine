@@ -6,7 +6,6 @@
 #include "KibakoEngine/Core/Log.h"
 #include "KibakoEngine/Core/Profiler.h"
 #include "KibakoEngine/Renderer/Camera2D.h"
-#include "KibakoEngine/Renderer/DebugDraw2D.h"
 
 #include <cmath>
 
@@ -18,8 +17,6 @@ using namespace KibakoEngine;
 namespace
 {
     constexpr const char* kLogChannel = "Sandbox";
-    constexpr int   kDebugDrawLayer = 1000;
-    constexpr float kColliderThickness = 2.0f;
 }
 
 GameLayer::GameLayer(Application& app)
@@ -65,7 +62,7 @@ void GameLayer::OnDetach()
     m_entityRight = 0;
 
     m_showCollisionDebug = false;
-    m_lastCollision = false;
+    m_scene.SetCollisionDebugEnabled(false);
     m_simTime = 0.0f;
 }
 
@@ -75,9 +72,10 @@ void GameLayer::OnUpdate(float /*dt*/)
 
     // Variable-step: toggles / app-level inputs
     auto& input = m_app.InputSys();
-
-    if (input.KeyPressed(SDL_SCANCODE_F1))
+    if (input.KeyPressed(SDL_SCANCODE_F1)) {
         m_showCollisionDebug = !m_showCollisionDebug;
+        m_scene.SetCollisionDebugEnabled(m_showCollisionDebug);
+    }
 }
 
 void GameLayer::OnFixedUpdate(float fixedDt)
@@ -103,9 +101,6 @@ void GameLayer::OnRender(SpriteBatch2D& batch)
 
         m_scene.Render(batch, &visibleRect);
     }
-
-    if (m_showCollisionDebug)
-        RenderCollisionDebug(batch);
 
     if (auto* e = m_scene.FindEntity(m_entityLeft)) {
         e->transform.position.y += 0.1f;
@@ -139,47 +134,6 @@ void GameLayer::FixedSimStep(float fixedDt)
         : Color4{ 0.55f, 0.55f, 0.55f, 1.0f };
     }
 
-    m_lastCollision = hit;
-
     // If Scene2D::Update becomes "simulation update", it belongs here
     m_scene.Update(fixedDt);
-}
-
-void GameLayer::RenderCollisionDebug(SpriteBatch2D& batch)
-{
-    const Color4 circleHit = Color4::White();
-    const Color4 circleIdle = Color4{ 0.7f, 0.7f, 0.7f, 1.0f };
-    const Color4 crossColor = Color4::White();
-
-    for (const Entity2D& e : m_scene.Entities()) {
-        if (!e.active)
-            continue;
-
-        const Transform2D& t = e.transform;
-        const Color4 circleColor = m_lastCollision ? circleHit : circleIdle;
-
-        const CollisionComponent2D* col = m_scene.Collisions().TryGet(e.id);
-        if (!col)
-            continue;
-
-        const bool drew = DebugDraw2D::DrawCollisionComponent(
-            batch,
-            t,
-            *col,
-            circleColor,
-            circleColor,
-            kColliderThickness,
-            kDebugDrawLayer,
-            48);
-
-        if (drew) {
-            DebugDraw2D::DrawCross(
-                batch,
-                t.position,
-                10.0f,
-                crossColor,
-                kColliderThickness,
-                kDebugDrawLayer);
-        }
-    }
 }

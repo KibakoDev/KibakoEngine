@@ -4,6 +4,7 @@
 #include "KibakoEngine/Core/Debug.h"
 #include "KibakoEngine/Core/Log.h"
 #include "KibakoEngine/Renderer/SpriteBatch2D.h"
+#include "KibakoEngine/Renderer/DebugDraw2D.h"
 #include "KibakoEngine/Resources/AssetManager.h"
 
 #include <nlohmann/json.hpp>
@@ -144,6 +145,9 @@ namespace KibakoEngine {
         m_aabbPool.clear();
         m_nameLookup.clear();
         m_entityIndex.clear();
+#if KBK_DEBUG_BUILD
+        m_collisionDebugEnabled = false;
+#endif
 
         m_nextID = 1;
     }
@@ -259,6 +263,24 @@ namespace KibakoEngine {
         KBK_UNUSED(dt);
     }
 
+    void Scene2D::SetCollisionDebugEnabled(bool enabled)
+    {
+#if KBK_DEBUG_BUILD
+        m_collisionDebugEnabled = enabled;
+#else
+        KBK_UNUSED(enabled);
+#endif
+    }
+
+    bool Scene2D::IsCollisionDebugEnabled() const
+    {
+#if KBK_DEBUG_BUILD
+        return m_collisionDebugEnabled;
+#else
+        return false;
+#endif
+    }
+
     void Scene2D::RemoveEntityAtSwapIndex(std::size_t index)
     {
         const std::size_t last = m_entities.size() - 1;
@@ -311,6 +333,46 @@ namespace KibakoEngine {
                 t.rotation,
                 spr->layer);
         }
+
+#if KBK_DEBUG_BUILD
+        if (!m_collisionDebugEnabled)
+            return;
+
+        constexpr int kDebugDrawLayer = 1000;
+        constexpr float kColliderThickness = 2.0f;
+        constexpr Color4 kCircleColor = Color4{ 1.0f, 1.0f, 0.0f, 1.0f };
+        constexpr Color4 kAABBColor = Color4{ 1.0f, 1.0f, 0.0f, 1.0f };
+        constexpr Color4 kCrossColor = Color4{ 1.0f, 0.0f, 0.0f, 1.0f };
+
+        for (const Entity2D& entity : m_entities) {
+            if (!entity.active)
+                continue;
+
+            const CollisionComponent2D* col = m_collisions.TryGet(entity.id);
+            if (!col)
+                continue;
+
+            const bool drew = DebugDraw2D::DrawCollisionComponent(
+                batch,
+                entity.transform,
+                *col,
+                kCircleColor,
+                kAABBColor,
+                kColliderThickness,
+                kDebugDrawLayer,
+                48);
+
+            if (drew) {
+                DebugDraw2D::DrawCross(
+                    batch,
+                    entity.transform.position,
+                    10.0f,
+                    kCrossColor,
+                    kColliderThickness,
+                    kDebugDrawLayer);
+            }
+        }
+#endif
     }
 
     // ------------------------------------------------------------------------
