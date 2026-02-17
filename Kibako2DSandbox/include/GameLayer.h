@@ -1,4 +1,3 @@
-// Gameplay layer used by the sandbox application
 #pragma once
 
 #include <cstdint>
@@ -19,26 +18,23 @@ public:
     void OnAttach() override;
     void OnDetach() override;
 
-    void OnUpdate(float dt) override;          // variable
-    void OnFixedUpdate(float fixedDt) override; // fixed
+    void OnUpdate(float dt) override;
+    void OnFixedUpdate(float fixedDt) override;
     void OnRender(KibakoEngine::SpriteBatch2D& batch) override;
 
-    // ---- Editor access
     KibakoEngine::Scene2D& GetScene() { return m_scene; }
     const KibakoEngine::Scene2D& GetScene() const { return m_scene; }
 
 private:
     void FixedSimStep(float fixedDt);
+    void ToggleCollisionDebug();
 
 private:
     KibakoEngine::Application& m_app;
-    KibakoEngine::Scene2D m_scene;
+    KibakoEngine::Scene2D      m_scene;
 
     std::uint32_t m_entityLeft = 0;
     std::uint32_t m_entityRight = 0;
 
-    bool  m_showCollisionDebug = false;
-
-    // Sim time should advance in fixed step
     float m_simTime = 0.0f;
 };
