@@ -44,8 +44,6 @@
               <input id="ins_name" type="text" value="" />
             </div>
 
-            <div class="section_title">Transform (live)</div>
-
             <div class="row">
               <div class="label">Position</div>
               <div class="fields2">
@@ -72,7 +70,7 @@
 
       <div id="editor_footer">
         <img id="logo" src="img/KibakoEngine_Logo_Black.png" />
-        <p id="commit">Editor UI Refactor</p>
+        <p id="commit">Editor UI</p>
       </div>
     </div>
   </body>

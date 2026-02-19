@@ -5,6 +5,7 @@
 #include "KibakoEngine/UI/RmlRenderInterfaceD3D11.h"
 #include "KibakoEngine/Renderer/RendererD3D11.h"
 #include "KibakoEngine/Core/Log.h"
+#include "KibakoEngine/Core/Profiler.h"
 
 #include <RmlUi/Debugger.h>
 
@@ -207,6 +208,8 @@ namespace KibakoEngine {
 
     void RmlUIContext::ProcessSDLEvent(const SDL_Event& evt)
     {
+        KBK_PROFILE_SCOPE("RmlUIContext::ProcessSDLEvent");
+
         if (!m_context)
             return;
 
@@ -286,6 +289,7 @@ namespace KibakoEngine {
 
     void RmlUIContext::Update(float dt)
     {
+        KBK_PROFILE_SCOPE("RmlUIContext::Update");
         (void)dt; // RmlUI drives its own timing through the SystemInterface
         if (m_context)
             m_context->Update();
@@ -297,6 +301,7 @@ namespace KibakoEngine {
 
     void RmlUIContext::Render()
     {
+        KBK_PROFILE_SCOPE("RmlUIContext::Render");
         if (m_context)
             m_context->Render();
     }

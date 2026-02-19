@@ -5,6 +5,7 @@
 
 #include "KibakoEngine/Core/Application.h"
 #include "KibakoEngine/Core/Log.h"
+#include "KibakoEngine/Core/Profiler.h"
 #include "KibakoEngine/UI/RmlUIContext.h"
 #include "KibakoEngine/Scene/Scene2D.h"
 
@@ -149,6 +150,11 @@ namespace KibakoEngine {
         m_inspectorDirty = false;
         m_isApplyingInspector = false;
         m_hierarchyDirty = true;
+        m_inspectorViewDirty = true;
+        m_statsDirty = true;
+        m_lastSceneRevision = 0;
+        m_entityButtons.clear();
+        m_hierarchyOrder.clear();
 
         auto& ui = app.UI();
 
@@ -214,6 +220,7 @@ namespace KibakoEngine {
 
         RefreshStats();
         RefreshHierarchy();
+        m_inspectorViewDirty = true;
         RefreshInspector();
 
         m_doc->Show();
@@ -241,6 +248,11 @@ namespace KibakoEngine {
         m_inspectorDirty = false;
         m_isApplyingInspector = false;
         m_hierarchyDirty = true;
+        m_inspectorViewDirty = true;
+        m_statsDirty = true;
+        m_lastSceneRevision = 0;
+        m_entityButtons.clear();
+        m_hierarchyOrder.clear();
 
         m_lastInsName.clear();
         m_lastInsPosX.clear();
@@ -269,9 +281,13 @@ namespace KibakoEngine {
         m_selectedEntity = 0;
         m_inspectorDirty = false;
         m_hierarchyDirty = true;
+        m_inspectorViewDirty = true;
+        m_statsDirty = true;
+        m_lastSceneRevision = 0;
 
         RefreshStats();
         RefreshHierarchy();
+        m_inspectorViewDirty = true;
         RefreshInspector();
     }
 
@@ -359,15 +375,26 @@ namespace KibakoEngine {
         m_selectedEntity = id;
         m_inspectorDirty = false;
 
-        // IMPORTANT: force inspector refresh on selection (this is your bug right now)
-        RefreshHierarchy();
-        RefreshInspector();
+        m_inspectorViewDirty = true;
+        m_hierarchyDirty = true;
     }
 
     void EditorOverlay::Update(float dt)
     {
         if (!m_enabled || !m_doc || !m_app)
             return;
+
+        KBK_PROFILE_SCOPE("EditorOverlay::Update");
+
+        if (m_scene) {
+            const auto revision = m_scene->Revision();
+            if (revision != m_lastSceneRevision) {
+                m_lastSceneRevision = revision;
+                m_hierarchyDirty = true;
+                m_inspectorViewDirty = true;
+                m_statsDirty = true;
+            }
+        }
 
         // If user edited values -> apply live
         if (m_inspectorDirty)
@@ -378,7 +405,12 @@ namespace KibakoEngine {
 
         if (m_statsAccum >= m_statsPeriod) {
             m_statsAccum = 0.0f;
+            m_statsDirty = true;
+        }
+
+        if (m_statsDirty) {
             RefreshStats();
+            m_statsDirty = false;
         }
 
         if (m_refreshAccum >= m_refreshPeriod) {
@@ -387,8 +419,8 @@ namespace KibakoEngine {
             if (m_hierarchyDirty)
                 RefreshHierarchy();
 
-            // Don’t override user typing
-            if (!HasFocusedInspectorField())
+            // Don't override user typing
+            if (m_inspectorViewDirty && !HasFocusedInspectorField())
                 RefreshInspector();
         }
     }
@@ -432,10 +464,26 @@ namespace KibakoEngine {
 
     void EditorOverlay::RefreshHierarchy()
     {
+        KBK_PROFILE_SCOPE("EditorOverlay::RefreshHierarchy");
+
         if (!m_hierarchyList || !m_doc)
             return;
 
+        if (m_entityButtons.empty())
+            RebuildHierarchy();
+        else
+            SyncHierarchyIncremental();
+
+        m_hierarchyDirty = false;
+    }
+
+    void EditorOverlay::RebuildHierarchy()
+    {
+        KBK_PROFILE_SCOPE("EditorOverlay::RebuildHierarchy");
+
         m_hierarchyList->SetInnerRML("");
+        m_entityButtons.clear();
+        m_hierarchyOrder.clear();
 
         if (!m_scene) {
             auto hint = m_doc->CreateElement("div");
@@ -447,8 +495,6 @@ namespace KibakoEngine {
             return;
         }
 
-        bool selectionStillValid = false;
-
         for (const auto& entity : m_scene->Entities()) {
             auto button = m_doc->CreateElement("button");
             if (!button)
@@ -458,38 +504,83 @@ namespace KibakoEngine {
             if (!entity.active)
                 button->SetClass("inactive", true);
 
-            // Name
             const auto* name = m_scene->TryGetName(entity.id);
-            std::string label = (name && !name->name.empty())
-                ? name->name
-                : ("Entity " + std::to_string(entity.id));
-
+            std::string label = (name && !name->name.empty()) ? name->name : ("Entity " + std::to_string(entity.id));
             if (!entity.active)
                 label.append(" (inactive)");
-
             button->SetInnerRML(label.c_str());
 
             const EntityID id = entity.id;
-            button->AddEventListener("click",
-                new ButtonListener([this, id](Rml::Event&) {
-                    SelectEntity(id);
-                    })
-            );
+            button->AddEventListener("click", new ButtonListener([this, id](Rml::Event&) { SelectEntity(id); }));
 
-            if (id == m_selectedEntity) {
+            if (id == m_selectedEntity)
                 button->SetClass("selected", true);
-                selectionStillValid = true;
+
+            Rml::Element* raw = button.get();
+            m_hierarchyList->AppendChild(std::move(button));
+            m_entityButtons[id] = raw;
+            m_hierarchyOrder.push_back(id);
+        }
+    }
+
+    void EditorOverlay::SyncHierarchyIncremental()
+    {
+        KBK_PROFILE_SCOPE("EditorOverlay::SyncHierarchyIncremental");
+
+        if (!m_scene) {
+            RebuildHierarchy();
+            m_selectedEntity = 0;
+            m_inspectorViewDirty = true;
+            return;
+        }
+
+        std::vector<EntityID> nextOrder;
+        nextOrder.reserve(m_scene->Entities().size());
+
+        bool selectionStillValid = false;
+
+        for (const auto& entity : m_scene->Entities()) {
+            nextOrder.push_back(entity.id);
+
+            auto found = m_entityButtons.find(entity.id);
+            if (found == m_entityButtons.end() || !found->second) {
+                RebuildHierarchy();
+                return;
             }
 
-            m_hierarchyList->AppendChild(std::move(button));
+            auto* button = found->second;
+            button->SetClass("entity", true);
+            button->SetClass("inactive", !entity.active);
+            button->SetClass("selected", entity.id == m_selectedEntity);
+
+            const auto* name = m_scene->TryGetName(entity.id);
+            std::string label = (name && !name->name.empty()) ? name->name : ("Entity " + std::to_string(entity.id));
+            if (!entity.active)
+                label.append(" (inactive)");
+            button->SetInnerRML(label.c_str());
+
+            if (entity.id == m_selectedEntity)
+                selectionStillValid = true;
+        }
+
+        if (nextOrder.size() != m_hierarchyOrder.size()) {
+            RebuildHierarchy();
+            return;
+        }
+
+        for (std::size_t i = 0; i < nextOrder.size(); ++i) {
+            if (nextOrder[i] != m_hierarchyOrder[i]) {
+                RebuildHierarchy();
+                return;
+            }
         }
 
         if (!selectionStillValid && m_selectedEntity != 0) {
             m_selectedEntity = 0;
-            RefreshInspector();
+            m_inspectorViewDirty = true;
         }
 
-        m_hierarchyDirty = false;
+        m_hierarchyOrder = std::move(nextOrder);
     }
 
     bool EditorOverlay::HasFocusedInspectorField() const
@@ -525,6 +616,8 @@ namespace KibakoEngine {
 
     void EditorOverlay::RefreshInspector()
     {
+        KBK_PROFILE_SCOPE("EditorOverlay::RefreshInspector");
+
         if (!m_inspectorHint)
             return;
 
@@ -532,6 +625,7 @@ namespace KibakoEngine {
             m_inspectorHint->SetClass("hidden", false);
             m_inspectorHint->SetInnerRML("No scene loaded.");
             SetInspectorDefaultValues();
+            m_inspectorViewDirty = false;
             return;
         }
 
@@ -542,6 +636,7 @@ namespace KibakoEngine {
 
         if (!hasSelection) {
             SetInspectorDefaultValues();
+            m_inspectorViewDirty = false;
             return;
         }
 
@@ -550,6 +645,7 @@ namespace KibakoEngine {
             m_selectedEntity = 0;
             m_inspectorHint->SetClass("hidden", false);
             SetInspectorDefaultValues();
+            m_inspectorViewDirty = false;
             return;
         }
 
@@ -585,6 +681,8 @@ namespace KibakoEngine {
         maybeSet(m_insRot, rotText, m_lastInsRot);
         maybeSet(m_insScaleX, scaleXText, m_lastInsScaleX);
         maybeSet(m_insScaleY, scaleYText, m_lastInsScaleY);
+
+        m_inspectorViewDirty = false;
     }
 
     void EditorOverlay::ApplyInspectorLive()
@@ -613,11 +711,13 @@ namespace KibakoEngine {
                 if (name->name != nameValue.c_str()) {
                     name->name = nameValue.c_str();
                     m_hierarchyDirty = true;
+                    m_inspectorViewDirty = true;
                 }
             }
             else if (!nameValue.empty()) {
                 m_scene->AddName(entity->id, nameValue.c_str());
                 m_hierarchyDirty = true;
+                m_inspectorViewDirty = true;
             }
             m_lastInsName = nameValue.c_str();
         }
@@ -651,6 +751,7 @@ namespace KibakoEngine {
         if (m_hierarchyDirty)
             RefreshHierarchy();
 
+        m_inspectorViewDirty = true;
         RefreshInspector();
 
         m_isApplyingInspector = false;

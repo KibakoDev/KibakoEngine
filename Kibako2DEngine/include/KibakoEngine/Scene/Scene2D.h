@@ -111,7 +111,10 @@ namespace KibakoEngine {
         [[nodiscard]] bool LoadFromFile(const char* path, AssetManager& assets);
         void ResolveAssets(AssetManager& assets);
 
+        [[nodiscard]] std::uint64_t Revision() const { return m_revision; }
+
     private:
+        void BumpRevision();
         void RemoveEntityAtSwapIndex(std::size_t index);
 
         EntityID m_nextID = 1;
@@ -129,6 +132,8 @@ namespace KibakoEngine {
 #if KBK_DEBUG_BUILD
         bool m_collisionDebugEnabled = false;
 #endif
+
+        std::uint64_t m_revision = 1;
     };
 
 } // namespace KibakoEngine

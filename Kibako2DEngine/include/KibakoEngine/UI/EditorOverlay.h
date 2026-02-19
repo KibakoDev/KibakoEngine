@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace Rml {
     class ElementDocument;
@@ -42,6 +44,8 @@ namespace KibakoEngine {
 
         void RefreshStats();
         void RefreshHierarchy();
+        void RebuildHierarchy();
+        void SyncHierarchyIncremental();
         void RefreshInspector();
 
         void SelectEntity(EntityID id);
@@ -87,6 +91,12 @@ namespace KibakoEngine {
         bool    m_inspectorDirty = false;
         bool    m_isApplyingInspector = false;
         bool    m_hierarchyDirty = true;
+        bool    m_inspectorViewDirty = true;
+        bool    m_statsDirty = true;
+
+        std::uint64_t m_lastSceneRevision = 0;
+        std::unordered_map<EntityID, Rml::Element*> m_entityButtons;
+        std::vector<EntityID> m_hierarchyOrder;
 
         // Last values written to inputs (avoid spam)
         std::string m_lastInsName;

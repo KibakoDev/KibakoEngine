@@ -84,6 +84,13 @@ namespace KibakoEngine {
 
     // ------------------------------------------------------------------------
 
+    void Scene2D::BumpRevision()
+    {
+        ++m_revision;
+        if (m_revision == 0)
+            m_revision = 1;
+    }
+
     Entity2D& Scene2D::CreateEntity()
     {
         const std::size_t index = m_entities.size();
@@ -91,6 +98,7 @@ namespace KibakoEngine {
         e.id = m_nextID++;
         e.active = true;
         m_entityIndex.emplace(e.id, index);
+        BumpRevision();
         return e;
     }
 
@@ -104,7 +112,8 @@ namespace KibakoEngine {
 
         if (forcedId >= m_nextID)
             m_nextID = forcedId + 1;
-
+        
+        BumpRevision();
         return e;
     }
 
@@ -131,6 +140,7 @@ namespace KibakoEngine {
         m_names.Remove(id);
 
         RemoveEntityAtSwapIndex(index);
+        BumpRevision();
     }
 
     void Scene2D::Clear()
@@ -150,6 +160,7 @@ namespace KibakoEngine {
 #endif
 
         m_nextID = 1;
+        BumpRevision();
     }
 
     Entity2D* Scene2D::FindEntity(EntityID id)
@@ -216,6 +227,7 @@ namespace KibakoEngine {
         if (!name.empty())
             m_nameLookup[name] = id;
 
+        BumpRevision();
         return n;
     }
 
