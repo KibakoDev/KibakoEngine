@@ -1,77 +1,85 @@
 <rml>
-  <head>
-    <title>Kibako Editor</title>
-    <link type="text/rcss" href="editor.rcss" />
-  </head>
+	<head>
+		<title>Kibako Editor</title>
+		<link type="text/rcss" href="editor.rcss" />
+	</head>
 
-  <body>
-    <div id="editor_root">
-      <div id="editor_topbar">
-        <div id="editor_left">
-          <div id="editor_title">Kibako Scene Editor</div>
-          <div id="editor_stats">
-            <span id="stats_entities">Entities: 0</span>
-            <span id="stats_fps">FPS: 0</span>
-          </div>
-        </div>
+	<body>
+		<div id="editor_shell">
 
-        <div id="editor_actions">
-          <button id="btn_apply">Apply</button>
-          <button id="btn_quit">Quit</button>
-        </div>
-      </div>
+			<div id="topbar">
+				<div id="brand">Kibako</div>
 
-      <div id="editor_body">
-        <div class="panel" id="panel_hierarchy">
-          <div class="panel_header">
-            <div class="panel_title">Hierarchy</div>
-          </div>
+				<div id="stats">
+					<span id="stats_entities">Entities: 0</span>
+					<span id="stats_fps">FPS: 0</span>
+				</div>
 
-          <div class="panel_subtitle">All scene entities</div>
-          <div id="hierarchy_list"></div>
-        </div>
+				<div id="actions">
+					<button id="btn_apply">Apply</button>
+					<button id="btn_quit">Quit</button>
+				</div>
+			</div>
 
-        <div class="panel" id="panel_inspector">
-          <div class="panel_header">
-            <div class="panel_title">Inspector</div>
-          </div>
+			<div id="main">
 
-          <div id="inspector_content">
-            <div id="inspector_hint" class="hint">Select an entity to inspect it.</div>
+				<!-- LEFT: Scene Tree -->
+				<div class="dock" id="dock_left">
+					<div class="dock_header">
+						<div class="dock_title">Scene Tree</div>
+					</div>
+					<div class="dock_body" id="tree_list"></div>
+				</div>
 
-            <div class="row">
-              <div class="label">Name</div>
-              <input id="ins_name" type="text" value="" />
-            </div>
+				<!-- CENTER: viewport placeholder -->
+				<div id="viewport">
+					<div id="viewport_hint">Viewport</div>
+				</div>
 
-            <div class="row">
-              <div class="label">Position</div>
-              <div class="fields2">
-                <input id="ins_pos_x" type="text" value="0.000" />
-                <input id="ins_pos_y" type="text" value="0.000" />
-              </div>
-            </div>
+				<!-- RIGHT: Inspector -->
+				<div class="dock" id="dock_right">
+					<div class="dock_header">
+						<div class="dock_title">Inspector</div>
+					</div>
 
-            <div class="row">
-              <div class="label">Rotation</div>
-              <input id="ins_rot" type="text" value="0.000" />
-            </div>
+					<div class="dock_body" id="inspector_body">
+						<div id="inspector_hint" class="hint">Select an entity to inspect it.</div>
 
-            <div class="row">
-              <div class="label">Scale</div>
-              <div class="fields2">
-                <input id="ins_scale_x" type="text" value="1.000" />
-                <input id="ins_scale_y" type="text" value="1.000" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+						<div class="row">
+							<div class="label">Name</div>
+							<input id="ins_name" type="text" value="" />
+						</div>
 
-      <div id="editor_footer">
-        <img id="logo" src="img/KibakoEngine_Logo_Black.png" />
-        <p id="commit">Editor UI</p>
-      </div>
-    </div>
-  </body>
+						<div class="row">
+							<div class="label">Position</div>
+							<div class="fields2">
+								<input id="ins_pos_x" type="text" value="0.000" />
+								<input id="ins_pos_y" type="text" value="0.000" />
+							</div>
+						</div>
+
+						<div class="row">
+							<div class="label">Rotation</div>
+							<input id="ins_rot" type="text" value="0.000" />
+						</div>
+
+						<div class="row">
+							<div class="label">Scale</div>
+							<div class="fields2">
+								<input id="ins_scale_x" type="text" value="1.000" />
+								<input id="ins_scale_y" type="text" value="1.000" />
+							</div>
+						</div>
+					</div>
+				</div>
+
+			</div>
+
+			<div id="footer">
+				<img id="logo" src="img/KibakoEngine_Logo_Black.png" />
+				<span id="footer_text">Editor UI</span>
+			</div>
+
+		</div>
+	</body>
 </rml>

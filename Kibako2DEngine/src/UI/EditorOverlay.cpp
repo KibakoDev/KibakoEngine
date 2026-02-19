@@ -34,10 +34,7 @@ namespace KibakoEngine {
     namespace {
         constexpr const char* kLogChannel = "Kibako.EditorUI";
 
-        static std::string ToRmlPathString(const std::filesystem::path& p)
-        {
-            return p.generic_string(); // forward slashes
-        }
+        static std::string ToRmlPathString(const std::filesystem::path& p) { return p.generic_string(); }
 
         static bool ExistsNoThrow(const std::filesystem::path& p)
         {
@@ -46,30 +43,18 @@ namespace KibakoEngine {
             return ok && !ec;
         }
 
-        static bool TryLoad(RmlUIContext& ui, const std::filesystem::path& p, Rml::ElementDocument*& outDoc)
-        {
-            outDoc = nullptr;
-            const std::string s = ToRmlPathString(p);
-            if (auto* doc = ui.LoadDocument(s.c_str())) {
-                outDoc = doc;
-                return true;
-            }
-            return false;
-        }
-
         static std::vector<std::filesystem::path> BuildCandidates(const Application& app)
         {
             std::vector<std::filesystem::path> candidates;
-            candidates.reserve(8);
+            candidates.reserve(4);
 
-            // Stable engine-owned path (your rule)
+            // Stable engine-owned path (rule)
             if (!app.EngineRoot().empty())
                 candidates.emplace_back(app.EngineRoot() / "assets" / "ui" / "editor.rml");
 
-            // Dev fallbacks (optional)
+            // Optional dev fallbacks
             if (!app.ContentRoot().empty())
                 candidates.emplace_back(app.ContentRoot() / "assets" / "ui" / "editor.rml");
-
             if (!app.ExecutableDir().empty())
                 candidates.emplace_back(app.ExecutableDir() / "assets" / "ui" / "editor.rml");
 
@@ -81,11 +66,12 @@ namespace KibakoEngine {
             return candidates;
         }
 
-        class ButtonListener final : public Rml::EventListener
+        // Self-deleting listener (safe with RmlUI element lifecycle)
+        class UiListener final : public Rml::EventListener
         {
         public:
             using Callback = std::function<void(Rml::Event&)>;
-            explicit ButtonListener(Callback cb) : m_cb(std::move(cb)) {}
+            explicit UiListener(Callback cb) : m_cb(std::move(cb)) {}
             void ProcessEvent(Rml::Event& e) override { if (m_cb) m_cb(e); }
             void OnDetach(Rml::Element*) override { delete this; }
         private:
@@ -142,17 +128,21 @@ namespace KibakoEngine {
         m_app = &app;
         m_enabled = true;
 
+        m_selectedEntity = 0;
+        m_isApplyingInspector = false;
+
+        m_treeDirty = true;
+        m_inspectorDirty = true;
+        m_statsDirty = true;
+
+        m_lastEntityCount = 0;
+
         m_statsAccum = 0.0f;
         m_refreshAccum = 0.0f;
 
-        m_selectedEntity = 0;
-        m_isApplyingInspector = false;
-        m_hierarchyDirty = true;
-        m_inspectorViewDirty = true;
-        m_statsDirty = true;
-        m_lastSceneRevision = 0;
-        m_entityButtons.clear();
-        m_hierarchyOrder.clear();
+        m_rowByEntity.clear();
+        m_treeOrder.clear();
+        m_cachedLabels.clear();
 
         auto& ui = app.UI();
 
@@ -161,17 +151,18 @@ namespace KibakoEngine {
             return;
         }
 
-        const auto candidates = BuildCandidates(app);
-
         Rml::ElementDocument* loadedDoc = nullptr;
         std::string loadedPath;
 
+        const auto candidates = BuildCandidates(app);
         for (const auto& p : candidates) {
             if (!ExistsNoThrow(p))
                 continue;
 
-            if (TryLoad(ui, p, loadedDoc)) {
-                loadedPath = ToRmlPathString(p);
+            const std::string s = ToRmlPathString(p);
+            if (auto* doc = ui.LoadDocument(s.c_str())) {
+                loadedDoc = doc;
+                loadedPath = s;
                 break;
             }
         }
@@ -190,10 +181,10 @@ namespace KibakoEngine {
 
         m_doc = loadedDoc;
 
-        // Cache UI elements
+        // Cache elements (IDs must match editor.rml)
         m_statsEntities = GetElement(*m_doc, "stats_entities");
         m_statsFps = GetElement(*m_doc, "stats_fps");
-        m_hierarchyList = GetElement(*m_doc, "hierarchy_list");
+        m_treeList = GetElement(*m_doc, "tree_list");
 
         m_inspectorHint = GetElement(*m_doc, "inspector_hint");
         m_insName = GetInput(*m_doc, "ins_name");
@@ -203,21 +194,14 @@ namespace KibakoEngine {
         m_insScaleX = GetInput(*m_doc, "ins_scale_x");
         m_insScaleY = GetInput(*m_doc, "ins_scale_y");
 
-        // Warn loudly if ids mismatch (this is THE #1 reason inspector doesn't update)
-        if (!m_hierarchyList) KbkWarn(kLogChannel, "Missing #hierarchy_list element");
+        if (!m_treeList)      KbkWarn(kLogChannel, "Missing #tree_list element");
         if (!m_inspectorHint) KbkWarn(kLogChannel, "Missing #inspector_hint element");
-        if (!m_insName)       KbkWarn(kLogChannel, "Missing #ins_name element");
-        if (!m_insPosX)       KbkWarn(kLogChannel, "Missing #ins_pos_x element");
-        if (!m_insPosY)       KbkWarn(kLogChannel, "Missing #ins_pos_y element");
-        if (!m_insRot)        KbkWarn(kLogChannel, "Missing #ins_rot element");
-        if (!m_insScaleX)     KbkWarn(kLogChannel, "Missing #ins_scale_x element");
-        if (!m_insScaleY)     KbkWarn(kLogChannel, "Missing #ins_scale_y element");
 
-        BindButtons();
+        BindTopbarButtons();
+        BindTreePolicyWheelOnly();
 
         RefreshStats();
-        RefreshHierarchy();
-        m_inspectorViewDirty = true;
+        RefreshTreeIfNeeded();
         RefreshInspector();
 
         m_doc->Show();
@@ -231,7 +215,7 @@ namespace KibakoEngine {
     {
         m_statsEntities = nullptr;
         m_statsFps = nullptr;
-        m_hierarchyList = nullptr;
+        m_treeList = nullptr;
 
         m_inspectorHint = nullptr;
         m_insName = nullptr;
@@ -243,12 +227,16 @@ namespace KibakoEngine {
 
         m_selectedEntity = 0;
         m_isApplyingInspector = false;
-        m_hierarchyDirty = true;
-        m_inspectorViewDirty = true;
+
+        m_treeDirty = true;
+        m_inspectorDirty = true;
         m_statsDirty = true;
-        m_lastSceneRevision = 0;
-        m_entityButtons.clear();
-        m_hierarchyOrder.clear();
+
+        m_lastEntityCount = 0;
+
+        m_rowByEntity.clear();
+        m_treeOrder.clear();
+        m_cachedLabels.clear();
 
         m_lastInsName.clear();
         m_lastInsPosX.clear();
@@ -267,6 +255,7 @@ namespace KibakoEngine {
         m_app = nullptr;
         m_onApply = {};
         m_enabled = false;
+
         m_statsAccum = 0.0f;
         m_refreshAccum = 0.0f;
     }
@@ -275,14 +264,15 @@ namespace KibakoEngine {
     {
         m_scene = scene;
         m_selectedEntity = 0;
-        m_hierarchyDirty = true;
-        m_inspectorViewDirty = true;
+
+        m_lastEntityCount = 0;
+        MarkTreeDirty();
+
+        m_inspectorDirty = true;
         m_statsDirty = true;
-        m_lastSceneRevision = 0;
 
         RefreshStats();
-        RefreshHierarchy();
-        m_inspectorViewDirty = true;
+        RefreshTreeIfNeeded();
         RefreshInspector();
     }
 
@@ -295,13 +285,55 @@ namespace KibakoEngine {
         else           m_doc->Hide();
     }
 
-    void EditorOverlay::BindButtons()
+    void EditorOverlay::Update(float dt)
+    {
+        if (!m_enabled || !m_doc || !m_app)
+            return;
+
+        KBK_PROFILE_SCOPE("EditorOverlay::Update");
+
+        // V0: only rebuild tree when count changes (structure changes).
+        const std::size_t count = (m_scene) ? m_scene->Entities().size() : 0;
+        if (count != m_lastEntityCount) {
+            m_lastEntityCount = count;
+            MarkTreeDirty();
+            m_statsDirty = true;
+            m_inspectorDirty = true;
+        }
+
+        m_statsAccum += dt;
+        m_refreshAccum += dt;
+
+        if (m_statsAccum >= m_statsPeriod) {
+            m_statsAccum = 0.0f;
+            m_statsDirty = true;
+        }
+
+        if (m_refreshAccum >= m_refreshPeriod) {
+            m_refreshAccum = 0.0f;
+
+            if (m_statsDirty) {
+                RefreshStats();
+                m_statsDirty = false;
+            }
+
+            RefreshTreeIfNeeded();
+
+            // Don’t fight user typing
+            if (m_inspectorDirty && !HasFocusedInspectorField()) {
+                RefreshInspector();
+                m_inspectorDirty = false;
+            }
+        }
+    }
+
+    void EditorOverlay::BindTopbarButtons()
     {
         if (!m_doc) return;
 
         if (auto* quit = m_doc->GetElementById("btn_quit")) {
             quit->AddEventListener("click",
-                new ButtonListener([](Rml::Event&) {
+                new UiListener([](Rml::Event&) {
                     SDL_Event evt{};
                     evt.type = SDL_QUIT;
                     SDL_PushEvent(&evt);
@@ -314,7 +346,7 @@ namespace KibakoEngine {
 
         if (auto* apply = m_doc->GetElementById("btn_apply")) {
             apply->AddEventListener("click",
-                new ButtonListener([this](Rml::Event&) {
+                new UiListener([this](Rml::Event&) {
                     ApplyInspector();
                     if (m_onApply) m_onApply();
                     })
@@ -325,58 +357,134 @@ namespace KibakoEngine {
         }
     }
 
+    void EditorOverlay::BindTreePolicyWheelOnly()
+    {
+        if (!m_treeList)
+            return;
+
+        // Wheel-only scroll policy: prevent LMB-based drag scrolling on the tree panel background.
+        // IMPORTANT: do NOT stop propagation when clicking a tree row; rows handle selection and stop there.
+        m_treeList->AddEventListener("mousedown",
+            new UiListener([this](Rml::Event& e) {
+                const int button = e.GetParameter<int>("button", -1);
+                if (button != 0)
+                    return;
+
+                // If target is a row (or inside a row), let the row listener handle it.
+                for (Rml::Element* el = e.GetTargetElement(); el && el != m_treeList; el = el->GetParentNode()) {
+                    if (el->IsClassSet("tree_row"))
+                        return;
+                }
+
+                // Background/scrollbar click: block default drag-scroll behavior.
+                e.StopImmediatePropagation();
+                })
+        );
+    }
+
+    void EditorOverlay::MarkTreeDirty()
+    {
+        m_treeDirty = true;
+    }
+
+    void EditorOverlay::RefreshTreeIfNeeded()
+    {
+        if (!m_treeDirty)
+            return;
+
+        RebuildTreeFlatList();
+        m_treeDirty = false;
+    }
+
+    void EditorOverlay::RebuildTreeFlatList()
+    {
+        KBK_PROFILE_SCOPE("EditorOverlay::RebuildTreeFlatList");
+
+        if (!m_treeList || !m_doc)
+            return;
+
+        m_treeList->SetInnerRML("");
+
+        m_rowByEntity.clear();
+        m_treeOrder.clear();
+        m_cachedLabels.clear();
+
+        if (!m_scene) {
+            auto hint = m_doc->CreateElement("div");
+            if (hint) {
+                hint->SetClass("hint", true);
+                hint->SetInnerRML("No scene loaded.");
+                m_treeList->AppendChild(std::move(hint));
+            }
+            return;
+        }
+
+        const auto& ents = m_scene->Entities();
+        m_treeOrder.reserve(ents.size());
+
+        for (const auto& ent : ents) {
+            auto row = m_doc->CreateElement("button");
+            if (!row)
+                continue;
+
+            row->SetClass("tree_row", true);
+            row->SetClass("inactive", !ent.active);
+            row->SetClass("selected", ent.id == m_selectedEntity);
+
+            const auto* name = m_scene->TryGetName(ent.id);
+            std::string label = (name && !name->name.empty())
+                ? name->name
+                : ("Entity " + std::to_string(ent.id));
+            if (!ent.active)
+                label.append(" (inactive)");
+
+            row->SetInnerRML(label.c_str());
+            m_cachedLabels[ent.id] = label;
+
+            const EntityID id = ent.id;
+            row->AddEventListener("mousedown",
+                new UiListener([this, id](Rml::Event& e) {
+                    const int button = e.GetParameter<int>("button", -1);
+                    if (button != 0)
+                        return;
+
+                    SelectEntity(id);
+
+                    // Avoid any default actions and ancestor interpretations (drag/scroll).
+                    e.StopImmediatePropagation();
+                    })
+            );
+
+            Rml::Element* raw = row.get();
+            m_treeList->AppendChild(std::move(row));
+
+            m_rowByEntity[id] = raw;
+            m_treeOrder.push_back(id);
+        }
+    }
 
     void EditorOverlay::SelectEntity(EntityID id)
     {
         if (m_selectedEntity == id)
             return;
 
+        // Clear previous selection class (cheap, no rebuild)
+        if (m_selectedEntity != 0) {
+            auto it = m_rowByEntity.find(m_selectedEntity);
+            if (it != m_rowByEntity.end() && it->second)
+                it->second->SetClass("selected", false);
+        }
+
         m_selectedEntity = id;
 
-        m_inspectorViewDirty = true;
-        m_hierarchyDirty = true;
-    }
-
-    void EditorOverlay::Update(float dt)
-    {
-        if (!m_enabled || !m_doc || !m_app)
-            return;
-
-        KBK_PROFILE_SCOPE("EditorOverlay::Update");
-
-        if (m_scene) {
-            const auto revision = m_scene->Revision();
-            if (revision != m_lastSceneRevision) {
-                m_lastSceneRevision = revision;
-                m_hierarchyDirty = true;
-                m_inspectorViewDirty = true;
-                m_statsDirty = true;
-            }
+        // Apply new selection class
+        if (m_selectedEntity != 0) {
+            auto it = m_rowByEntity.find(m_selectedEntity);
+            if (it != m_rowByEntity.end() && it->second)
+                it->second->SetClass("selected", true);
         }
 
-        m_statsAccum += dt;
-        m_refreshAccum += dt;
-
-        if (m_statsAccum >= m_statsPeriod) {
-            m_statsAccum = 0.0f;
-            m_statsDirty = true;
-        }
-
-        if (m_statsDirty) {
-            RefreshStats();
-            m_statsDirty = false;
-        }
-
-        if (m_refreshAccum >= m_refreshPeriod) {
-            m_refreshAccum = 0.0f;
-
-            if (m_hierarchyDirty)
-                RefreshHierarchy();
-
-            // Don't override user typing
-            if (m_inspectorViewDirty && !HasFocusedInspectorField())
-                RefreshInspector();
-        }
+        m_inspectorDirty = true;
     }
 
     void EditorOverlay::RefreshStats()
@@ -398,7 +506,6 @@ namespace KibakoEngine {
                 text.append(" (active ");
                 text.append(std::to_string(activeCount));
                 text.append(")");
-
                 m_statsEntities->SetInnerRML(text.c_str());
             }
         }
@@ -411,130 +518,8 @@ namespace KibakoEngine {
             text.reserve(16);
             text.append("FPS: ");
             text.append(std::to_string(fpsInt));
-
             m_statsFps->SetInnerRML(text.c_str());
         }
-    }
-
-    void EditorOverlay::RefreshHierarchy()
-    {
-        KBK_PROFILE_SCOPE("EditorOverlay::RefreshHierarchy");
-
-        if (!m_hierarchyList || !m_doc)
-            return;
-
-        if (m_entityButtons.empty())
-            RebuildHierarchy();
-        else
-            SyncHierarchyIncremental();
-
-        m_hierarchyDirty = false;
-    }
-
-    void EditorOverlay::RebuildHierarchy()
-    {
-        KBK_PROFILE_SCOPE("EditorOverlay::RebuildHierarchy");
-
-        m_hierarchyList->SetInnerRML("");
-        m_entityButtons.clear();
-        m_hierarchyOrder.clear();
-
-        if (!m_scene) {
-            auto hint = m_doc->CreateElement("div");
-            if (hint) {
-                hint->SetClass("hint", true);
-                hint->SetInnerRML("No scene loaded.");
-                m_hierarchyList->AppendChild(std::move(hint));
-            }
-            return;
-        }
-
-        for (const auto& entity : m_scene->Entities()) {
-            auto button = m_doc->CreateElement("button");
-            if (!button)
-                continue;
-
-            button->SetClass("entity", true);
-            if (!entity.active)
-                button->SetClass("inactive", true);
-
-            const auto* name = m_scene->TryGetName(entity.id);
-            std::string label = (name && !name->name.empty()) ? name->name : ("Entity " + std::to_string(entity.id));
-            if (!entity.active)
-                label.append(" (inactive)");
-            button->SetInnerRML(label.c_str());
-
-            const EntityID id = entity.id;
-            button->AddEventListener("click", new ButtonListener([this, id](Rml::Event&) { SelectEntity(id); }));
-
-            if (id == m_selectedEntity)
-                button->SetClass("selected", true);
-
-            Rml::Element* raw = button.get();
-            m_hierarchyList->AppendChild(std::move(button));
-            m_entityButtons[id] = raw;
-            m_hierarchyOrder.push_back(id);
-        }
-    }
-
-    void EditorOverlay::SyncHierarchyIncremental()
-    {
-        KBK_PROFILE_SCOPE("EditorOverlay::SyncHierarchyIncremental");
-
-        if (!m_scene) {
-            RebuildHierarchy();
-            m_selectedEntity = 0;
-            m_inspectorViewDirty = true;
-            return;
-        }
-
-        std::vector<EntityID> nextOrder;
-        nextOrder.reserve(m_scene->Entities().size());
-
-        bool selectionStillValid = false;
-
-        for (const auto& entity : m_scene->Entities()) {
-            nextOrder.push_back(entity.id);
-
-            auto found = m_entityButtons.find(entity.id);
-            if (found == m_entityButtons.end() || !found->second) {
-                RebuildHierarchy();
-                return;
-            }
-
-            auto* button = found->second;
-            button->SetClass("entity", true);
-            button->SetClass("inactive", !entity.active);
-            button->SetClass("selected", entity.id == m_selectedEntity);
-
-            const auto* name = m_scene->TryGetName(entity.id);
-            std::string label = (name && !name->name.empty()) ? name->name : ("Entity " + std::to_string(entity.id));
-            if (!entity.active)
-                label.append(" (inactive)");
-            button->SetInnerRML(label.c_str());
-
-            if (entity.id == m_selectedEntity)
-                selectionStillValid = true;
-        }
-
-        if (nextOrder.size() != m_hierarchyOrder.size()) {
-            RebuildHierarchy();
-            return;
-        }
-
-        for (std::size_t i = 0; i < nextOrder.size(); ++i) {
-            if (nextOrder[i] != m_hierarchyOrder[i]) {
-                RebuildHierarchy();
-                return;
-            }
-        }
-
-        if (!selectionStillValid && m_selectedEntity != 0) {
-            m_selectedEntity = 0;
-            m_inspectorViewDirty = true;
-        }
-
-        m_hierarchyOrder = std::move(nextOrder);
     }
 
     bool EditorOverlay::HasFocusedInspectorField() const
@@ -579,7 +564,6 @@ namespace KibakoEngine {
             m_inspectorHint->SetClass("hidden", false);
             m_inspectorHint->SetInnerRML("No scene loaded.");
             SetInspectorDefaultValues();
-            m_inspectorViewDirty = false;
             return;
         }
 
@@ -590,7 +574,6 @@ namespace KibakoEngine {
 
         if (!hasSelection) {
             SetInspectorDefaultValues();
-            m_inspectorViewDirty = false;
             return;
         }
 
@@ -599,7 +582,6 @@ namespace KibakoEngine {
             m_selectedEntity = 0;
             m_inspectorHint->SetClass("hidden", false);
             SetInspectorDefaultValues();
-            m_inspectorViewDirty = false;
             return;
         }
 
@@ -618,7 +600,6 @@ namespace KibakoEngine {
             {
                 if (!input) return;
 
-                // dont fight user typing (except during Apply)
                 if (!m_isApplyingInspector && input->IsPseudoClassSet("focus"))
                     return;
 
@@ -635,8 +616,6 @@ namespace KibakoEngine {
         maybeSet(m_insRot, rotText, m_lastInsRot);
         maybeSet(m_insScaleX, scaleXText, m_lastInsScaleX);
         maybeSet(m_insScaleY, scaleYText, m_lastInsScaleY);
-
-        m_inspectorViewDirty = false;
     }
 
     void EditorOverlay::ApplyInspector()
@@ -653,51 +632,33 @@ namespace KibakoEngine {
         // Name
         if (m_insName) {
             const auto& nameValue = m_insName->GetValue();
+
             if (auto* name = m_scene->TryGetName(entity->id)) {
                 if (name->name != nameValue.c_str()) {
                     name->name = nameValue.c_str();
-                    m_hierarchyDirty = true;
-                    m_inspectorViewDirty = true;
+
+                    // Update tree label without rebuild (V0: simplest approach is mark dirty and rebuild)
+                    MarkTreeDirty();
                 }
             }
             else if (!nameValue.empty()) {
                 m_scene->AddName(entity->id, nameValue.c_str());
-                m_hierarchyDirty = true;
-                m_inspectorViewDirty = true;
+                MarkTreeDirty();
             }
+
             m_lastInsName = nameValue.c_str();
         }
 
         // Transform
         float v = 0.0f;
+        if (m_insPosX && ParseFloat(m_insPosX->GetValue(), v)) { entity->transform.position.x = v; m_lastInsPosX = m_insPosX->GetValue().c_str(); }
+        if (m_insPosY && ParseFloat(m_insPosY->GetValue(), v)) { entity->transform.position.y = v; m_lastInsPosY = m_insPosY->GetValue().c_str(); }
+        if (m_insRot && ParseFloat(m_insRot->GetValue(), v)) { entity->transform.rotation = v; m_lastInsRot = m_insRot->GetValue().c_str(); }
+        if (m_insScaleX && ParseFloat(m_insScaleX->GetValue(), v)) { entity->transform.scale.x = v; m_lastInsScaleX = m_insScaleX->GetValue().c_str(); }
+        if (m_insScaleY && ParseFloat(m_insScaleY->GetValue(), v)) { entity->transform.scale.y = v; m_lastInsScaleY = m_insScaleY->GetValue().c_str(); }
 
-        if (m_insPosX && ParseFloat(m_insPosX->GetValue(), v)) {
-            entity->transform.position.x = v;
-            m_lastInsPosX = m_insPosX->GetValue().c_str();
-        }
-        if (m_insPosY && ParseFloat(m_insPosY->GetValue(), v)) {
-            entity->transform.position.y = v;
-            m_lastInsPosY = m_insPosY->GetValue().c_str();
-        }
-        if (m_insRot && ParseFloat(m_insRot->GetValue(), v)) {
-            entity->transform.rotation = v;
-            m_lastInsRot = m_insRot->GetValue().c_str();
-        }
-        if (m_insScaleX && ParseFloat(m_insScaleX->GetValue(), v)) {
-            entity->transform.scale.x = v;
-            m_lastInsScaleX = m_insScaleX->GetValue().c_str();
-        }
-        if (m_insScaleY && ParseFloat(m_insScaleY->GetValue(), v)) {
-            entity->transform.scale.y = v;
-            m_lastInsScaleY = m_insScaleY->GetValue().c_str();
-        }
-
-
-        if (m_hierarchyDirty)
-            RefreshHierarchy();
-
-        m_inspectorViewDirty = true;
-        RefreshInspector();
+        // Refresh immediately (inspector) – tree rebuild will happen on next cadence tick.
+        m_inspectorDirty = true;
 
         m_isApplyingInspector = false;
     }
