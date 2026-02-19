@@ -11,6 +11,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <system_error>
 
 namespace KibakoEngine {
 
@@ -37,8 +38,6 @@ namespace KibakoEngine {
             if (!arr.is_array() || arr.size() < 2)
                 return { dx, dy };
 
-            // "get<float>()" can throw if type mismatch; value() is safer but doesn't work on arrays.
-            // We keep get<float>() but guard with is_number().
             const auto& x = arr[0];
             const auto& y = arr[1];
 
@@ -80,6 +79,44 @@ namespace KibakoEngine {
                 arr[3].get<float>()
             };
         }
+
+        bool IsFiniteFloat(float v)
+        {
+            return std::isfinite(v);
+        }
+
+        // Reads a generic script params object into ScriptComponent::params.
+        // Supported param types: bool, int, float, string. Others are ignored safely.
+        void ReadScriptParams(const nlohmann::json& paramsObj, ScriptComponent& outScript)
+        {
+            if (!paramsObj.is_object())
+                return;
+
+            for (auto it = paramsObj.begin(); it != paramsObj.end(); ++it)
+            {
+                const std::string key = it.key();
+                const auto& v = it.value();
+
+                if (v.is_boolean()) {
+                    outScript.params[key] = v.get<bool>();
+                }
+                else if (v.is_number_integer()) {
+                    outScript.params[key] = v.get<int>();
+                }
+                else if (v.is_number_float()) {
+                    const float f = v.get<float>();
+                    if (IsFiniteFloat(f))
+                        outScript.params[key] = f;
+                }
+                else if (v.is_string()) {
+                    outScript.params[key] = v.get<std::string>();
+                }
+                else {
+                    // arrays/objects/null are intentionally ignored in V1
+                }
+            }
+        }
+
     } // namespace
 
     // ------------------------------------------------------------------------
@@ -112,7 +149,7 @@ namespace KibakoEngine {
 
         if (forcedId >= m_nextID)
             m_nextID = forcedId + 1;
-        
+
         BumpRevision();
         return e;
     }
@@ -138,6 +175,7 @@ namespace KibakoEngine {
         m_sprites.Remove(id);
         m_collisions.Remove(id);
         m_names.Remove(id);
+        m_scripts.Remove(id);
 
         RemoveEntityAtSwapIndex(index);
         BumpRevision();
@@ -150,11 +188,13 @@ namespace KibakoEngine {
         m_sprites.Clear();
         m_collisions.Clear();
         m_names.Clear();
+        m_scripts.Clear();
 
         m_circlePool.clear();
         m_aabbPool.clear();
         m_nameLookup.clear();
         m_entityIndex.clear();
+
 #if KBK_DEBUG_BUILD
         m_collisionDebugEnabled = false;
 #endif
@@ -212,6 +252,16 @@ namespace KibakoEngine {
         return m_sprites.Add(id);
     }
 
+    SpriteRenderer2D* Scene2D::TryGetSprite(EntityID id)
+    {
+        return m_sprites.TryGet(id);
+    }
+
+    const SpriteRenderer2D* Scene2D::TryGetSprite(EntityID id) const
+    {
+        return m_sprites.TryGet(id);
+    }
+
     NameComponent& Scene2D::AddName(EntityID id, const std::string& name)
     {
         NameComponent& n = m_names.Add(id);
@@ -239,6 +289,21 @@ namespace KibakoEngine {
     const NameComponent* Scene2D::TryGetName(EntityID id) const
     {
         return m_names.TryGet(id);
+    }
+
+    ScriptComponent& Scene2D::AddScript(EntityID id)
+    {
+        return m_scripts.Add(id);
+    }
+
+    ScriptComponent* Scene2D::TryGetScript(EntityID id)
+    {
+        return m_scripts.TryGet(id);
+    }
+
+    const ScriptComponent* Scene2D::TryGetScript(EntityID id) const
+    {
+        return m_scripts.TryGet(id);
     }
 
     CircleCollider2D* Scene2D::AddCircleCollider(EntityID id, float radius, bool active)
@@ -422,11 +487,15 @@ namespace KibakoEngine {
         }
 
         const auto& entitiesJson = *itEntities;
+
         m_entities.reserve(entitiesJson.size());
         m_entityIndex.reserve(entitiesJson.size());
+
         m_sprites.Reserve(entitiesJson.size());
         m_collisions.Reserve(entitiesJson.size());
         m_names.Reserve(entitiesJson.size());
+        m_scripts.Reserve(entitiesJson.size());
+
         m_nameLookup.reserve(entitiesJson.size());
 
         for (const auto& eJson : entitiesJson)
@@ -506,6 +575,21 @@ namespace KibakoEngine {
                         c.value("halfW", 0.0f),
                         c.value("halfH", 0.0f),
                         active);
+                }
+            }
+
+            // script (generic, engine-owned)
+            if (auto itSc = eJson.find("script"); itSc != eJson.end() && itSc->is_object()) {
+                const auto& sc = *itSc;
+
+                auto itClass = sc.find("class");
+                if (itClass != sc.end() && itClass->is_string()) {
+                    auto& script = AddScript(e.id);
+                    script.className = itClass->get<std::string>();
+
+                    if (auto itParams = sc.find("params"); itParams != sc.end()) {
+                        ReadScriptParams(*itParams, script);
+                    }
                 }
             }
         }

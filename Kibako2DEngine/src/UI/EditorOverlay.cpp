@@ -139,6 +139,7 @@ namespace KibakoEngine {
 
         m_statsAccum = 0.0f;
         m_refreshAccum = 0.0f;
+        m_inspectorAccum = 0.0f;
 
         m_rowByEntity.clear();
         m_treeOrder.clear();
@@ -258,6 +259,7 @@ namespace KibakoEngine {
 
         m_statsAccum = 0.0f;
         m_refreshAccum = 0.0f;
+        m_inspectorAccum = 0.0f;
     }
 
     void EditorOverlay::SetScene(Scene2D* scene)
@@ -292,7 +294,6 @@ namespace KibakoEngine {
 
         KBK_PROFILE_SCOPE("EditorOverlay::Update");
 
-        // V0: only rebuild tree when count changes (structure changes).
         const std::size_t count = (m_scene) ? m_scene->Entities().size() : 0;
         if (count != m_lastEntityCount) {
             m_lastEntityCount = count;
@@ -303,6 +304,7 @@ namespace KibakoEngine {
 
         m_statsAccum += dt;
         m_refreshAccum += dt;
+        m_inspectorAccum += dt;
 
         if (m_statsAccum >= m_statsPeriod) {
             m_statsAccum = 0.0f;
@@ -318,8 +320,14 @@ namespace KibakoEngine {
             }
 
             RefreshTreeIfNeeded();
+        }
 
-            // Don’t fight user typing
+        if (m_inspectorAccum >= m_inspectorPeriod) {
+            m_inspectorAccum = 0.0f;
+
+            if (m_selectedEntity != 0)
+                m_inspectorDirty = true;
+
             if (m_inspectorDirty && !HasFocusedInspectorField()) {
                 RefreshInspector();
                 m_inspectorDirty = false;

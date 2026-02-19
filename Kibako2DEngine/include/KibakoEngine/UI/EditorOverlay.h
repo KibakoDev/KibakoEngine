@@ -97,8 +97,10 @@ namespace KibakoEngine {
         // Timing
         float m_statsAccum = 0.0f;
         float m_refreshAccum = 0.0f;
+        float m_inspectorAccum = 0.0f;
         const float m_statsPeriod = 0.10f;
         const float m_refreshPeriod = 0.10f;
+        const float m_inspectorPeriod = 1.0f / 30.0f;
 
         std::function<void()> m_onApply;
 

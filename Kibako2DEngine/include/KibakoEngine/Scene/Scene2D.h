@@ -6,6 +6,7 @@
 #include <string>
 #include <deque>
 #include <unordered_map>
+#include <variant>
 
 #include <DirectXMath.h>
 
@@ -48,6 +49,15 @@ namespace KibakoEngine {
         std::string name;
     };
 
+    // Generic "script" data component (engine-owned, game-agnostic)
+    using ScriptValue = std::variant<std::monostate, bool, int, float, std::string>;
+
+    struct ScriptComponent
+    {
+        std::string className;
+        std::unordered_map<std::string, ScriptValue> params;
+    };
+
     // ---- Entity -------------------------------------------------------------
 
     struct Entity2D
@@ -85,18 +95,26 @@ namespace KibakoEngine {
         ComponentStore<SpriteRenderer2D>& Sprites() { return m_sprites; }
         ComponentStore<CollisionComponent2D>& Collisions() { return m_collisions; }
         ComponentStore<NameComponent>& Names() { return m_names; }
+        ComponentStore<ScriptComponent>& Scripts() { return m_scripts; }
 
         const ComponentStore<SpriteRenderer2D>& Sprites() const { return m_sprites; }
         const ComponentStore<CollisionComponent2D>& Collisions() const { return m_collisions; }
         const ComponentStore<NameComponent>& Names() const { return m_names; }
+        const ComponentStore<ScriptComponent>& Scripts() const { return m_scripts; }
 
         // ---- Component helpers ---------------------------------------------
 
         SpriteRenderer2D& AddSprite(EntityID id);
+        SpriteRenderer2D* TryGetSprite(EntityID id);
+        const SpriteRenderer2D* TryGetSprite(EntityID id) const;
 
         NameComponent& AddName(EntityID id, const std::string& name = {});
         NameComponent* TryGetName(EntityID id);
         const NameComponent* TryGetName(EntityID id) const;
+
+        ScriptComponent& AddScript(EntityID id);
+        ScriptComponent* TryGetScript(EntityID id);
+        const ScriptComponent* TryGetScript(EntityID id) const;
 
         CircleCollider2D* AddCircleCollider(EntityID id, float radius, bool active = true);
         AABBCollider2D* AddAABBCollider(EntityID id, float halfW, float halfH, bool active = true);
@@ -124,6 +142,7 @@ namespace KibakoEngine {
         ComponentStore<SpriteRenderer2D>      m_sprites;
         ComponentStore<CollisionComponent2D> m_collisions;
         ComponentStore<NameComponent>        m_names;
+        ComponentStore<ScriptComponent>      m_scripts;
 
         std::deque<CircleCollider2D> m_circlePool;
         std::deque<AABBCollider2D>   m_aabbPool;
