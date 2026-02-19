@@ -160,6 +160,11 @@ namespace KibakoEngine {
 
         m_hwnd = info.info.win.window;
         KBK_ASSERT(m_hwnd != nullptr, "SDL window did not provide a valid HWND");
+
+#if !KBK_DEBUG_BUILD
+        SDL_ShowCursor(SDL_DISABLE);
+#endif
+
         return true;
     }
 

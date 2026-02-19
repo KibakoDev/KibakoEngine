@@ -228,6 +228,8 @@ input {
   background-color: #1b1c1e;
   border: 1px #2c2f34;
 
+  cursor: text;
+
   color: rgba(255, 255, 255, 92%);
 
   font-size: 12px;

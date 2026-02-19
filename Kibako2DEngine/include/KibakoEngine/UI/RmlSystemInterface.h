@@ -33,6 +33,7 @@ namespace KibakoEngine {
         // Cached SDL cursors reused by RmlUI
         SDL_Cursor* m_cursorArrow = nullptr;
         SDL_Cursor* m_cursorHand = nullptr;
+        SDL_Cursor* m_cursorText = nullptr;
     };
 
 } // namespace KibakoEngine
