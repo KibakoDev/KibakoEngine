@@ -248,12 +248,23 @@ namespace KibakoEngine {
         }
 
         case SDL_MOUSEWHEEL: {
-#if SDL_VERSION_ATLEAST(2, 26, 0)
-            // Keep hover/click hit testing in sync when scrolling nested UI lists.
-            m_context->ProcessMouseMove(evt.wheel.mouseX, evt.wheel.mouseY, mods);
-#endif
-            const float wheel = static_cast<float>(evt.wheel.y);
-            m_context->ProcessMouseWheel(-wheel, mods);
+            // Always resync hover element before scrolling.
+            int mx = 0, my = 0;
+            SDL_GetMouseState(&mx, &my);
+            m_context->ProcessMouseMove(mx, my, mods);
+
+            float wheelX = static_cast<float>(evt.wheel.x);
+            float wheelY = static_cast<float>(evt.wheel.y);
+
+            // SDL can report flipped wheel on some systems/settings.
+            if (evt.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) {
+                wheelX = -wheelX;
+                wheelY = -wheelY;
+            }
+
+            // RmlUi: positive values are directed right and down.
+            // SDL: wheel.y is typically +1 when scrolling up, so invert Y.
+            m_context->ProcessMouseWheel({ wheelX, -wheelY }, mods);
             break;
         }
 
