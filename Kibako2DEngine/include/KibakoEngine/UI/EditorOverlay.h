@@ -40,8 +40,6 @@ namespace KibakoEngine {
 
     private:
         void BindButtons();
-        void BindInspectorInputs();
-
         void RefreshStats();
         void RefreshHierarchy();
         void RebuildHierarchy();
@@ -87,7 +85,6 @@ namespace KibakoEngine {
 
         EntityID m_selectedEntity = 0;
 
-        bool    m_inspectorDirty = false;
         bool    m_isApplyingInspector = false;
         bool    m_hierarchyDirty = true;
         bool    m_inspectorViewDirty = true;

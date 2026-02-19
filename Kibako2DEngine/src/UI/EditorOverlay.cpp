@@ -17,7 +17,6 @@
 #include <RmlUi/Core/Event.h>
 #include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
-#include <RmlUi/Core/Input.h>
 
 #include <cerrno>
 #include <cmath>
@@ -147,7 +146,6 @@ namespace KibakoEngine {
         m_refreshAccum = 0.0f;
 
         m_selectedEntity = 0;
-        m_inspectorDirty = false;
         m_isApplyingInspector = false;
         m_hierarchyDirty = true;
         m_inspectorViewDirty = true;
@@ -216,7 +214,6 @@ namespace KibakoEngine {
         if (!m_insScaleY)     KbkWarn(kLogChannel, "Missing #ins_scale_y element");
 
         BindButtons();
-        BindInspectorInputs();
 
         RefreshStats();
         RefreshHierarchy();
@@ -245,7 +242,6 @@ namespace KibakoEngine {
         m_insScaleY = nullptr;
 
         m_selectedEntity = 0;
-        m_inspectorDirty = false;
         m_isApplyingInspector = false;
         m_hierarchyDirty = true;
         m_inspectorViewDirty = true;
@@ -279,7 +275,6 @@ namespace KibakoEngine {
     {
         m_scene = scene;
         m_selectedEntity = 0;
-        m_inspectorDirty = false;
         m_hierarchyDirty = true;
         m_inspectorViewDirty = true;
         m_statsDirty = true;
@@ -330,37 +325,6 @@ namespace KibakoEngine {
         }
     }
 
-    void EditorOverlay::BindInspectorInputs()
-    {
-        auto bind = [this](Rml::ElementFormControlInput* input) {
-            if (!input) return;
-
-            // Mark inspector as dirty when user commits/changes fields.
-            // Actual scene mutation happens only through Apply.
-            input->AddEventListener("change", new ButtonListener([this](Rml::Event&) {
-                m_inspectorDirty = true;
-                }));
-
-            input->AddEventListener("blur", new ButtonListener([this](Rml::Event&) {
-                m_inspectorDirty = true;
-                }));
-
-            input->AddEventListener("keydown", new ButtonListener([this](Rml::Event& e) {
-                const auto key = e.GetParameter<Rml::Input::KeyIdentifier>(
-                    "key_identifier", Rml::Input::KI_UNKNOWN);
-
-                if (key == Rml::Input::KI_RETURN)
-                    m_inspectorDirty = true;
-                }));
-            };
-
-        bind(m_insName);
-        bind(m_insPosX);
-        bind(m_insPosY);
-        bind(m_insRot);
-        bind(m_insScaleX);
-        bind(m_insScaleY);
-    }
 
     void EditorOverlay::SelectEntity(EntityID id)
     {
@@ -368,7 +332,6 @@ namespace KibakoEngine {
             return;
 
         m_selectedEntity = id;
-        m_inspectorDirty = false;
 
         m_inspectorViewDirty = true;
         m_hierarchyDirty = true;
@@ -655,7 +618,7 @@ namespace KibakoEngine {
             {
                 if (!input) return;
 
-                // don’t fight user typing (except during Apply)
+                // donÂ’t fight user typing (except during Apply)
                 if (!m_isApplyingInspector && input->IsPseudoClassSet("focus"))
                     return;
 
@@ -729,7 +692,6 @@ namespace KibakoEngine {
             m_lastInsScaleY = m_insScaleY->GetValue().c_str();
         }
 
-        m_inspectorDirty = false;
 
         if (m_hierarchyDirty)
             RefreshHierarchy();

@@ -43,7 +43,7 @@ namespace KibakoEngine {
         m_height = (height > 0) ? height : 1;
 
         m_systemInterface = std::make_unique<RmlSystemInterface>();
-        m_renderInterface = std::make_unique<RmlRenderInterfaceD3D11>(renderer, m_width, m_height);
+        m_renderInterface = std::make_unique<RmlRenderInterfaceD3D11>(renderer);
 
         Rml::SetSystemInterface(m_systemInterface.get());
         Rml::SetRenderInterface(m_renderInterface.get());
@@ -121,14 +121,13 @@ namespace KibakoEngine {
 
     void RmlUIContext::OnResize(int width, int height)
     {
-        if (!m_context || !m_renderInterface)
+        if (!m_context)
             return;
 
         m_width = (width > 0) ? width : 1;
         m_height = (height > 0) ? height : 1;
 
         m_context->SetDimensions(Rml::Vector2i(m_width, m_height));
-        m_renderInterface->SetViewportSize(m_width, m_height);
 
         KbkLog(kLogChannel, "UI resized to %dx%d (backbuffer space)", m_width, m_height);
     }

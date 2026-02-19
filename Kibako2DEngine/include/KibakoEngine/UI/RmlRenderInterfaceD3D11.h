@@ -17,7 +17,7 @@ namespace KibakoEngine {
 
     class RmlRenderInterfaceD3D11 : public Rml::RenderInterface {
     public:
-        RmlRenderInterfaceD3D11(RendererD3D11& renderer, int uiWidth, int uiHeight);
+        explicit RmlRenderInterfaceD3D11(RendererD3D11& renderer);
         ~RmlRenderInterfaceD3D11() override = default;
 
         // RmlUI rendering API
@@ -42,12 +42,6 @@ namespace KibakoEngine {
 
         void ReleaseTexture(Rml::TextureHandle texture) override;
 
-        // Viewport / UI surface size in pixels (window resolution)
-        void SetViewportSize(int uiWidth, int uiHeight)
-        {
-            m_uiWidth = (uiWidth > 0) ? uiWidth : 1;
-            m_uiHeight = (uiHeight > 0) ? uiHeight : 1;
-        }
 
         // RmlUI state callbacks
         void EnableScissorRegion(bool enable) override;
@@ -71,8 +65,6 @@ namespace KibakoEngine {
         size_t m_vertexReserveHint = 1024;
         size_t m_indexReserveHint = 1536;
 
-        int m_uiWidth = 1; // in pixels (window space)
-        int m_uiHeight = 1;
 
         bool m_scissorEnabled = false;
         Rml::Rectanglei m_scissorRegion{};
