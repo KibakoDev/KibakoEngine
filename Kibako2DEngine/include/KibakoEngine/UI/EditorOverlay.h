@@ -12,8 +12,8 @@
 #include <vector>
 
 namespace Rml {
-    class Element;
     class ElementDocument;
+    class Element;
     class ElementFormControlInput;
 }
 
@@ -24,45 +24,41 @@ namespace KibakoEngine {
 
     using EntityID = std::uint32_t;
 
-    // Debug-only editor overlay powered by RmlUI.
-    class EditorOverlay final
+    class EditorOverlay
     {
     public:
         void Init(Application& app);
         void Shutdown();
 
         void SetScene(Scene2D* scene);
-
         void SetEnabled(bool enabled);
         bool IsEnabled() const { return m_enabled; }
 
-        // Optional hook invoked after applying inspector values.
         void SetOnApply(std::function<void()> fn) { m_onApply = std::move(fn); }
 
         void Update(float dt);
 
     private:
         void BindButtons();
-        void BindHierarchyInputGuards(); // Wheel-only scrolling policy.
-
-        void SelectEntity(EntityID id);
-
         void RefreshStats();
         void RefreshHierarchy();
         void RebuildHierarchy();
         void SyncHierarchyIncremental();
-
         void RefreshInspector();
+
+        void SelectEntity(EntityID id);
+
         void ApplyInspector();
 
         bool HasFocusedInspectorField() const;
+
         void SetInspectorDefaultValues();
 
     private:
         Application* m_app = nullptr;
         Scene2D* m_scene = nullptr;
 
-        // Document + cached elements
+        // Document + elements
         Rml::ElementDocument* m_doc = nullptr;
 
         Rml::Element* m_statsEntities = nullptr;
@@ -78,30 +74,27 @@ namespace KibakoEngine {
         Rml::ElementFormControlInput* m_insScaleY = nullptr;
 
         // State
-        EntityID m_selectedEntity = 0;
-
-        bool m_enabled = true;
-        bool m_isApplyingInspector = false;
-
-        bool m_hierarchyDirty = true;
-        bool m_inspectorViewDirty = true;
-        bool m_statsDirty = true;
-
-        std::uint64_t m_lastSceneRevision = 0;
-
-        float m_statsAccum = 0.0f;
-        float m_refreshAccum = 0.0f;
-
-        const float m_statsPeriod = 0.10f;   // 10x/sec
-        const float m_refreshPeriod = 0.10f; // UI refresh cadence
-
         std::function<void()> m_onApply;
 
-        // Hierarchy bookkeeping (stable pointers to buttons)
-        std::unordered_map<EntityID, Rml::Element*> m_entityButtons;
-        std::vector<EntityID>                      m_hierarchyOrder;
+        float   m_statsAccum = 0.0f;
+        float   m_refreshAccum = 0.0f;
+        float   m_statsPeriod = 0.10f;   // 10x/sec
+        float   m_refreshPeriod = 0.15f; // UI refresh cadence
 
-        // Inspector "last pushed" values (so we don't spam SetValue)
+        bool    m_enabled = true;
+
+        EntityID m_selectedEntity = 0;
+
+        bool    m_isApplyingInspector = false;
+        bool    m_hierarchyDirty = true;
+        bool    m_inspectorViewDirty = true;
+        bool    m_statsDirty = true;
+
+        std::uint64_t m_lastSceneRevision = 0;
+        std::unordered_map<EntityID, Rml::Element*> m_entityButtons;
+        std::vector<EntityID> m_hierarchyOrder;
+
+        // Last values written to inputs (avoid spam)
         std::string m_lastInsName;
         std::string m_lastInsPosX;
         std::string m_lastInsPosY;
