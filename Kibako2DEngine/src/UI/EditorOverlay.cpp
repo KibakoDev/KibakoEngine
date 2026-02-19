@@ -62,11 +62,11 @@ namespace KibakoEngine {
             std::vector<std::filesystem::path> candidates;
             candidates.reserve(8);
 
-            // Stable engine-owned path (your rule)
+            // Stable engine-owned path (rule)
             if (!app.EngineRoot().empty())
                 candidates.emplace_back(app.EngineRoot() / "assets" / "ui" / "editor.rml");
 
-            // Dev fallbacks (optional)
+            // Dev fallbacks (optional convenience)
             if (!app.ContentRoot().empty())
                 candidates.emplace_back(app.ContentRoot() / "assets" / "ui" / "editor.rml");
 
@@ -81,13 +81,16 @@ namespace KibakoEngine {
             return candidates;
         }
 
+        // Self-deleting listener (safe with RmlUI element lifecycle)
         class ButtonListener final : public Rml::EventListener
         {
         public:
             using Callback = std::function<void(Rml::Event&)>;
             explicit ButtonListener(Callback cb) : m_cb(std::move(cb)) {}
+
             void ProcessEvent(Rml::Event& e) override { if (m_cb) m_cb(e); }
             void OnDetach(Rml::Element*) override { delete this; }
+
         private:
             Callback m_cb;
         };
@@ -151,6 +154,7 @@ namespace KibakoEngine {
         m_inspectorViewDirty = true;
         m_statsDirty = true;
         m_lastSceneRevision = 0;
+
         m_entityButtons.clear();
         m_hierarchyOrder.clear();
 
@@ -203,7 +207,7 @@ namespace KibakoEngine {
         m_insScaleX = GetInput(*m_doc, "ins_scale_x");
         m_insScaleY = GetInput(*m_doc, "ins_scale_y");
 
-        // Warn loudly if ids mismatch (this is THE #1 reason inspector doesn't update)
+        // Loud warnings on ID mismatches (saves hours)
         if (!m_hierarchyList) KbkWarn(kLogChannel, "Missing #hierarchy_list element");
         if (!m_inspectorHint) KbkWarn(kLogChannel, "Missing #inspector_hint element");
         if (!m_insName)       KbkWarn(kLogChannel, "Missing #ins_name element");
@@ -214,6 +218,7 @@ namespace KibakoEngine {
         if (!m_insScaleY)     KbkWarn(kLogChannel, "Missing #ins_scale_y element");
 
         BindButtons();
+        BindHierarchyInputGuards();
 
         RefreshStats();
         RefreshHierarchy();
@@ -247,6 +252,7 @@ namespace KibakoEngine {
         m_inspectorViewDirty = true;
         m_statsDirty = true;
         m_lastSceneRevision = 0;
+
         m_entityButtons.clear();
         m_hierarchyOrder.clear();
 
@@ -325,6 +331,48 @@ namespace KibakoEngine {
         }
     }
 
+    void EditorOverlay::BindHierarchyInputGuards()
+    {
+        if (!m_hierarchyList)
+            return;
+
+        // Wheel-only scrolling policy:
+        // Prevent any LMB drag-scrolling or scrollbar dragging within the hierarchy list.
+        m_hierarchyList->AddEventListener("mousedown",
+            new ButtonListener([](Rml::Event& e) {
+                const int button = e.GetParameter<int>("button", -1);
+                if (button != 0) // left only
+                    return;
+
+                // If the click hits scrollbar/empty space, block default drag/scroll behavior.
+                e.StopImmediatePropagation();
+                })
+        );
+
+        m_hierarchyList->AddEventListener("mousemove",
+            new ButtonListener([](Rml::Event& e) {
+                // On mousemove, RmlUi provides a bitmask of held buttons.
+                const int buttons = e.GetParameter<int>("buttons", 0);
+                const bool left_down = (buttons & 1) != 0; // left = bit 0
+                if (!left_down)
+                    return;
+
+                // Block scrollbar thumb dragging / content drag scrolling.
+                e.StopImmediatePropagation();
+                })
+        );
+
+        m_hierarchyList->AddEventListener("mouseup",
+            new ButtonListener([](Rml::Event& e) {
+                const int button = e.GetParameter<int>("button", -1);
+                if (button != 0) // left only
+                    return;
+
+                // Safety: ensure no default actions are processed on release.
+                e.StopImmediatePropagation();
+                })
+        );
+    }
 
     void EditorOverlay::SelectEntity(EntityID id)
     {
@@ -332,7 +380,6 @@ namespace KibakoEngine {
             return;
 
         m_selectedEntity = id;
-
         m_inspectorViewDirty = true;
         m_hierarchyDirty = true;
     }
@@ -459,13 +506,28 @@ namespace KibakoEngine {
                 button->SetClass("inactive", true);
 
             const auto* name = m_scene->TryGetName(entity.id);
-            std::string label = (name && !name->name.empty()) ? name->name : ("Entity " + std::to_string(entity.id));
+            std::string label = (name && !name->name.empty())
+                ? name->name
+                : ("Entity " + std::to_string(entity.id));
             if (!entity.active)
                 label.append(" (inactive)");
             button->SetInnerRML(label.c_str());
 
             const EntityID id = entity.id;
-            button->AddEventListener("click", new ButtonListener([this, id](Rml::Event&) { SelectEntity(id); }));
+
+            // Select on mousedown to avoid click cancellation when drag gestures occur.
+            button->AddEventListener("mousedown",
+                new ButtonListener([this, id](Rml::Event& e) {
+                    const int button = e.GetParameter<int>("button", -1);
+                    if (button != 0) // left only
+                        return;
+
+                    SelectEntity(id);
+
+                    // Prevent default actions (and stop ancestors from interpreting this as drag/scroll).
+                    e.StopImmediatePropagation();
+                    })
+            );
 
             if (id == m_selectedEntity)
                 button->SetClass("selected", true);
@@ -508,7 +570,9 @@ namespace KibakoEngine {
             button->SetClass("selected", entity.id == m_selectedEntity);
 
             const auto* name = m_scene->TryGetName(entity.id);
-            std::string label = (name && !name->name.empty()) ? name->name : ("Entity " + std::to_string(entity.id));
+            std::string label = (name && !name->name.empty())
+                ? name->name
+                : ("Entity " + std::to_string(entity.id));
             if (!entity.active)
                 label.append(" (inactive)");
             button->SetInnerRML(label.c_str());
@@ -618,7 +682,7 @@ namespace KibakoEngine {
             {
                 if (!input) return;
 
-                // dont fight user typing (except during Apply)
+                // Don't fight user typing (except during Apply)
                 if (!m_isApplyingInspector && input->IsPseudoClassSet("focus"))
                     return;
 
@@ -691,7 +755,6 @@ namespace KibakoEngine {
             entity->transform.scale.y = v;
             m_lastInsScaleY = m_insScaleY->GetValue().c_str();
         }
-
 
         if (m_hierarchyDirty)
             RefreshHierarchy();

@@ -94,6 +94,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  drag: block;
+  overscroll-behavior: contain;
+  padding-right: 8px;
 }
 
 button {
@@ -116,6 +119,7 @@ button:hover {
   border: 1px rgba(255, 255, 255, 8%);
   background-color: rgba(255, 255, 255, 4%);
   padding: 6px 8px;
+  drag: block;
 }
 
 .entity:hover {
