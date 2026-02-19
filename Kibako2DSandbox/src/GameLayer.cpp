@@ -94,7 +94,7 @@ void GameLayer::OnRender(SpriteBatch2D& batch)
 
 void GameLayer::ToggleCollisionDebug()
 {
-    const bool enabled = !m_scene.IsCollisionDebugEnabled(); // <-- idéal si tu exposes ça
+    const bool enabled = !m_scene.IsCollisionDebugEnabled();
     m_scene.SetCollisionDebugEnabled(enabled);
 }
 
@@ -105,9 +105,8 @@ void GameLayer::FixedSimStep(float fixedDt)
     Entity2D* left = m_scene.FindEntity(m_entityLeft);
     Entity2D* right = m_scene.FindEntity(m_entityRight);
 
-    // Exemple “safe”: bouger en fixed step si tu veux tester
     if (left) {
-        left->transform.position.y += 0.1f; // (ou un vrai speed * fixedDt)
+        left->transform.position.y += 0.1f;
     }
 
     const auto* leftCol = m_scene.Collisions().TryGet(m_entityLeft);
