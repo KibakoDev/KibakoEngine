@@ -145,8 +145,6 @@ namespace KibakoEngine {
         const auto cmdLess = [this](const Unified& a, const Unified& b) {
             if (a.layer != b.layer)
                 return a.layer < b.layer;
-            if (a.srv != b.srv)
-                return a.srv < b.srv;
 
             if (a.isSprite != b.isSprite)
                 return a.isSprite;
@@ -168,8 +166,6 @@ namespace KibakoEngine {
             return a.index < b.index;
             };
 
-        // Sorting can become expensive for very large sprite lists.
-        // Skip the sort when submissions are already in the optimal order.
         if (!std::is_sorted(m_unifiedCommands.begin(), m_unifiedCommands.end(), cmdLess)) {
             std::stable_sort(m_unifiedCommands.begin(), m_unifiedCommands.end(), cmdLess);
         }
