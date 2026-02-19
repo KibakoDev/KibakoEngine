@@ -5,7 +5,6 @@
 #include "KibakoEngine/Core/Log.h"
 
 #include <algorithm>
-#include <cmath>
 
 namespace KibakoEngine {
 
@@ -26,12 +25,9 @@ namespace KibakoEngine {
     // Construction
     //-------------------------------------
 
-    RmlRenderInterfaceD3D11::RmlRenderInterfaceD3D11(RendererD3D11& renderer,
-        int uiWidth,
-        int uiHeight)
+    RmlRenderInterfaceD3D11::RmlRenderInterfaceD3D11(RendererD3D11& renderer)
         : m_Renderer(renderer)
     {
-        SetViewportSize(uiWidth, uiHeight);
     }
 
     //-------------------------------------
