@@ -35,6 +35,7 @@
     <ClInclude Include="include\KibakoEngine\UI\RmlSystemInterface.h" />
     <ClInclude Include="include\KibakoEngine\UI\RmlUIContext.h" />
     <ClInclude Include="include\KibakoEngine\Utils\Math.h" />
+    <ClInclude Include="include\KibakoEngine\Scene\ScriptParams.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Collision\Collision2D.cpp" />

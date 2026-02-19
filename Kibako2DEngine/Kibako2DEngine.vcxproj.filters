@@ -83,6 +83,9 @@
     <ClInclude Include="include\KibakoEngine\UI\EditorOverlay.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\KibakoEngine\Scene\ScriptParams.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Collision\Collision2D.cpp">
