@@ -51,7 +51,6 @@ namespace KibakoEngine {
         void SelectEntity(EntityID id);
 
         void ApplyInspector();
-        void ApplyInspectorLive();
 
         bool HasFocusedInspectorField() const;
 

@@ -223,28 +223,36 @@ namespace KibakoEngine {
         }
 
         case SDL_MOUSEBUTTONDOWN: {
-            int button = 0;
+            int button = -1;
             if (evt.button.button == SDL_BUTTON_LEFT)        button = 0;
             else if (evt.button.button == SDL_BUTTON_RIGHT)  button = 1;
             else if (evt.button.button == SDL_BUTTON_MIDDLE) button = 2;
 
-            m_context->ProcessMouseMove(evt.button.x, evt.button.y, mods);
-            m_context->ProcessMouseButtonDown(button, mods);
+            if (button >= 0) {
+                m_context->ProcessMouseMove(evt.button.x, evt.button.y, mods);
+                m_context->ProcessMouseButtonDown(button, mods);
+            }
             break;
         }
 
         case SDL_MOUSEBUTTONUP: {
-            int button = 0;
+            int button = -1;
             if (evt.button.button == SDL_BUTTON_LEFT)        button = 0;
             else if (evt.button.button == SDL_BUTTON_RIGHT)  button = 1;
             else if (evt.button.button == SDL_BUTTON_MIDDLE) button = 2;
 
-            m_context->ProcessMouseMove(evt.button.x, evt.button.y, mods);
-            m_context->ProcessMouseButtonUp(button, mods);
+            if (button >= 0) {
+                m_context->ProcessMouseMove(evt.button.x, evt.button.y, mods);
+                m_context->ProcessMouseButtonUp(button, mods);
+            }
             break;
         }
 
         case SDL_MOUSEWHEEL: {
+#if SDL_VERSION_ATLEAST(2, 26, 0)
+            // Keep hover/click hit testing in sync when scrolling nested UI lists.
+            m_context->ProcessMouseMove(evt.wheel.mouseX, evt.wheel.mouseY, mods);
+#endif
             const float wheel = static_cast<float>(evt.wheel.y);
             m_context->ProcessMouseWheel(-wheel, mods);
             break;

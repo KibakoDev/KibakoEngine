@@ -335,27 +335,22 @@ namespace KibakoEngine {
         auto bind = [this](Rml::ElementFormControlInput* input) {
             if (!input) return;
 
-            // change fires when value is committed
+            // Mark inspector as dirty when user commits/changes fields.
+            // Actual scene mutation happens only through Apply.
             input->AddEventListener("change", new ButtonListener([this](Rml::Event&) {
                 m_inspectorDirty = true;
-                ApplyInspectorLive();
                 }));
 
-            // blur = user leaves field
             input->AddEventListener("blur", new ButtonListener([this](Rml::Event&) {
                 m_inspectorDirty = true;
-                ApplyInspectorLive();
                 }));
 
-            // enter = commit
             input->AddEventListener("keydown", new ButtonListener([this](Rml::Event& e) {
                 const auto key = e.GetParameter<Rml::Input::KeyIdentifier>(
                     "key_identifier", Rml::Input::KI_UNKNOWN);
 
-                if (key == Rml::Input::KI_RETURN) {
+                if (key == Rml::Input::KI_RETURN)
                     m_inspectorDirty = true;
-                    ApplyInspectorLive();
-                }
                 }));
             };
 
@@ -395,10 +390,6 @@ namespace KibakoEngine {
                 m_statsDirty = true;
             }
         }
-
-        // If user edited values -> apply live
-        if (m_inspectorDirty)
-            ApplyInspectorLive();
 
         m_statsAccum += dt;
         m_refreshAccum += dt;
@@ -683,14 +674,6 @@ namespace KibakoEngine {
         maybeSet(m_insScaleY, scaleYText, m_lastInsScaleY);
 
         m_inspectorViewDirty = false;
-    }
-
-    void EditorOverlay::ApplyInspectorLive()
-    {
-        if (!m_inspectorDirty)
-            return;
-
-        ApplyInspector();
     }
 
     void EditorOverlay::ApplyInspector()
